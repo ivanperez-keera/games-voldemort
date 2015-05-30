@@ -282,29 +282,27 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
       oi      <- adaptInput             -< (c, (o, cs, pt))
       ol      <- processObjMovement     -< oi
       elems   <- arr elemsIL            -< ol
-      cs'     <- detectObjectCollisions -< ol
+      let ol' = maybe ol (\po -> insertIL_ po ol) (playerObject p' g')
+      cs'     <- detectObjectCollisions -< ol'
       pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
       returnA -< ((p', g', elems, NoEvent, pts'), (elems, cs', pts'))
    )
-      
-   --  (adaptInput >>> processPlayerMovement >>> processObjMovement
-   --   >>> (arr elemsIL &&& detectObjectCollisions))
-   --  &&& (arr (fth4.snd))) -- This last bit just carries the old points forward
-
-   -- -- Adds the old point count to the newly-made points
-   -- >>> (arr fst &&& arr (\((_,cs),o) -> o + countPoints cs))        
-   --                                                                  
-   -- -- Re-arrange output, selecting (objects+dead+points, objects+collisions+points)
-   -- >>> (composeOutput &&& arr (\((x,y),z) -> (x,y,z)))
-
  where
-
-       -- Detect collisions between the ball and the bottom
-       -- which are the only ones that matter outside gamePlay'
-       composeOutput = proc ((x,y),z) -> do
-         y' <- collisionWithBottom -< y
-         returnA -< (x,y',z)
-
+       playerRadius = 10
+       playerObject mPlayer graph = flip fmap (playerPosition graph mPlayer) $ \p ->
+                                      ObjectOutput (Object { objectName           = "player"
+                                                           , objectKind           = Ball playerRadius
+                                                           , objectPos            = p
+                                                           , objectVel            = (0,0)
+                                                           , objectAcc            = (0,0)
+                                                           , objectDead           = False
+                                                           , objectHit            = False
+                                                           , canCauseCollisions   = True
+                                                           , collisionEnergy      = 0
+                                                           , displacedOnCollision = False -- Theoretically, setting cE == 0 should suffice
+                                                           })
+                                                    NoEvent
+          
        -- Just reorder the input
        adaptInput :: SF (Controller, (ObjectOutputs, Collisions, Int)) ObjectInput
        adaptInput = arr (\(gi,(os,cs,pts)) -> ObjectInput gi cs (map outputObject os))

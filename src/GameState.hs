@@ -31,6 +31,15 @@ data GameState = GameState
   , graph       :: Graph
   }
 
+playerPosition :: Graph -> Player -> Maybe Pos2D
+playerPosition _     Nothing                = Nothing
+playerPosition graph (Just (orig, Nothing)) = nodePosition graph orig
+playerPosition graph (Just (orig, Just (TransitionInfo prog dest))) =
+  (fst . (`coordsF` prog)) <$> findArrowByNodes orig dest (arrows graph)
+
+nodePosition :: Graph -> NodeId -> Maybe Pos2D
+nodePosition graph nid = nodePos <$> (find (\x -> nodeId x == nid) (nodes graph))
+
 nodeAtPos :: Graph -> Pos2D -> Maybe NodeId
 nodeAtPos graph pos =
   nodeId <$> (find (pos `ontoNode`) $ nodes graph)
