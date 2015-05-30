@@ -206,7 +206,9 @@ gamePlayOrPause lives level pts = gamePlay lives level pts
 -- points.
 gamePlay :: Int -> Int -> Int -> SF Controller GameState
 gamePlay lives level pts =
-  gamePlay' (initialObjects level, initialGraph level) >>> composeGameState lives level pts
+  gamePlay' initialState  >>> composeGameState lives level pts
+ where 
+   initialState = (Just (0, Nothing), initialObjects level, initialGraph level)
 
 -- | Based on the internal gameplay info, compose the main game state and
 -- detect when a live is lost. When that happens, restart this SF
@@ -275,7 +277,7 @@ type InitialState = (Player, ObjectSFs, Graph)
 gamePlay' :: InitialState -> SF Controller (ObjectOutputs, Event (), Int)
 gamePlay' (player, objs, graph) = loopPre ([],[],0) $
    -- Process physical movement and detect new collisions
-   ((adaptInput >>> processMovement >>> (arr elemsIL &&& detectObjectCollisions))
+   ((adaptInput >>> processObjMovement >>> (arr elemsIL &&& detectObjectCollisions))
    &&& (arr (thd3.snd))) -- This last bit just carries the old points forward
 
    -- Adds the old point count to the newly-made points
@@ -303,14 +305,14 @@ gamePlay' (player, objs, graph) = loopPre ([],[],0) $
        processPlayerMovement' :: Player -> Graph -> SF GraphInput (Player, Graph)
        processPlayerMovement' player graph = loopPre (player, graph)
           (arr $ \(graphInput, (player, graph)) -> case player of
-                     Nothing           -> (player, graph)
+                     Nothing           -> ((player, graph), (player, graph))
                      Just (n, Nothing) -> undefined -- Check if needs to move forward upon click
                      Just (n, tInfo)   -> undefined -- Move forward, possibly altering graph
           )
 
        -- Wrong! This does not know about delta T!
        movePlayerForward :: Graph -> TransitionInfo -> (TransitionInfo, Graph)
-       movePlayerForward 
+       movePlayerForward  = undefined
 
        -- Parallely apply all object functions
        processObjMovement :: SF ObjectInput (IL ObjectOutput)
@@ -320,7 +322,7 @@ gamePlay' (player, objs, graph) = loopPre ([],[],0) $
        processObjMovement' objs = dpSwitchB 
          objs                                   -- Signal functions
          (noEvent --> arr suicidalSect)         -- When necessary, remove all elements that must be removed
-         (\sfs' f -> processMovement' (f sfs')) -- Move along! Move along! (with new state, aka. sfs)
+         (\sfs' f -> processObjMovement' (f sfs')) -- Move along! Move along! (with new state, aka. sfs)
 
        suicidalSect :: (a, IL ObjectOutput) -> (Event (IL ObjectSF -> IL ObjectSF))
        suicidalSect (_,oos) =
@@ -348,6 +350,7 @@ gamePlay' (player, objs, graph) = loopPre ([],[],0) $
                hasBall     = any ((=="ball").fst)
                countBlocks = length . filter ((isPrefixOf "block").fst)
 
+type GraphInput = ()
 
 -- * Game objects
 --

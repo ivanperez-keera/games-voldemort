@@ -23,9 +23,11 @@ import Physics.TwoDimensions.Dimensions
 data GameState = GameState
   { gameObjects :: Objects
   , gameInfo    :: GameInfo
-  , player      :: Maybe (NodeId, Maybe TransitionInfo)
+  , player      :: Player
   , graph       :: Graph
   }
+
+type Player = Maybe (NodeId, Maybe TransitionInfo)
 
 data TransitionInfo = TransitionInfo
   { relativePos  :: RelativePos
