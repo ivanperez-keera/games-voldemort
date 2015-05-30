@@ -222,7 +222,7 @@ gamePlay lives level pts =
 -- will fall in an infinite loop.  Therefore, this dswitch only switches for
 -- non-start events.
 composeGameState :: Int -> Int -> Int
-                 -> SF (ObjectOutputs, Event (), Int) GameState
+                 -> SF (Player, Graph, ObjectOutputs, Event (), Int) GameState
 composeGameState lives level pts = futureDSwitch
   (composeGameState' lives level pts)
   (\_ -> composeGameState (lives-1) level pts)
@@ -231,14 +231,14 @@ composeGameState lives level pts = futureDSwitch
 -- detect when a live is lost. When that happens, keep the last known game
 -- state.
 composeGameState' :: Int -> Int -> Int
-                  -> SF (ObjectOutputs, Event (), Int) (GameState, Event GameState)
-composeGameState' lives level pts = proc (oos,dead,points) -> do
+                  -> SF (Player, Graph, ObjectOutputs, Event (), Int) (GameState, Event GameState)
+composeGameState' lives level pts = proc (player, graph, oos,dead,points) -> do
   -- Compose game state
   objects <- extractObjects -< oos
   let general = GameState objects
                           (GameInfo GamePlaying lives level (pts+points))
-                          Nothing
-                          (Graph [] [])
+                          player
+                          graph
 
   -- Detect death
   let lastGeneral = dead `tag` general
@@ -274,17 +274,28 @@ type InitialState = (Player, ObjectSFs, Graph)
 --
 --    - The last known points (added to the new ones in every loop iteration).
 --
-gamePlay' :: InitialState -> SF Controller (ObjectOutputs, Event (), Int)
-gamePlay' (player, objs, graph) = loopPre ([],[],0) $
+gamePlay' :: InitialState -> SF Controller (Player, Graph, ObjectOutputs, Event (), Int)
+gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
    -- Process physical movement and detect new collisions
-   ((adaptInput >>> processObjMovement >>> (arr elemsIL &&& detectObjectCollisions))
-   &&& (arr (thd3.snd))) -- This last bit just carries the old points forward
+   (proc (c,(o,cs,pt)) -> do
+      (p',g') <- processPlayerMovement  -< c
+      oi      <- adaptInput             -< (c, (o, cs, pt))
+      ol      <- processObjMovement     -< oi
+      elems   <- arr elemsIL            -< ol
+      cs'     <- detectObjectCollisions -< ol
+      pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
+      returnA -< ((p', g', elems, NoEvent, pts'), (elems, cs', pts'))
+   )
+      
+   --  (adaptInput >>> processPlayerMovement >>> processObjMovement
+   --   >>> (arr elemsIL &&& detectObjectCollisions))
+   --  &&& (arr (fth4.snd))) -- This last bit just carries the old points forward
 
-   -- Adds the old point count to the newly-made points
-   >>> (arr fst &&& arr (\((_,cs),o) -> o + countPoints cs))        
-                                                                    
-   -- Re-arrange output, selecting (objects+dead+points, objects+collisions+points)
-   >>> (composeOutput &&& arr (\((x,y),z) -> (x,y,z)))
+   -- -- Adds the old point count to the newly-made points
+   -- >>> (arr fst &&& arr (\((_,cs),o) -> o + countPoints cs))        
+   --                                                                  
+   -- -- Re-arrange output, selecting (objects+dead+points, objects+collisions+points)
+   -- >>> (composeOutput &&& arr (\((x,y),z) -> (x,y,z)))
 
  where
 
@@ -688,3 +699,9 @@ objWall name side pos = proc (ObjectInput ci cs os) -> do
                         , displacedOnCollision = False
                         })
                 noEvent
+
+for5 :: (a,b,c,d,e) -> d
+for5 (a,b,c,d,e) = d
+
+fth5 :: (a,b,c,d,e) -> d
+fth5 (a,b,c,d,e) = d
