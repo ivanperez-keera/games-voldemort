@@ -10,6 +10,7 @@ module GameState where
 
 -- import FRP.Yampa as Yampa
 
+import Data.Maybe (fromJust)
 import Objects
 import Physics.TwoDimensions.Dimensions
 
@@ -52,10 +53,23 @@ data Arrow = Arrow
   , arrowNode2 :: NodeId
   , speedF     :: RelativePos -> RelativeSpeed
   , coordsF    :: RelativePos -> (Pos2D, Vel2D)
+  , arrowHeads :: [RelativePos]
   }
 
-type RelativePos   = Float -- [0,1] numerical range
-type RelativeSpeed = Float -- [0,1] numerical range
+graphSpeedF :: Graph -> NodeId -> NodeId -> RelativePos -> RelativeSpeed
+graphSpeedF graph orig dest =
+  speedF $ fromJust $ findArrowByNodes orig dest (arrows graph)
+
+findArrowByNodes :: NodeId -> NodeId -> [Arrow] -> Maybe Arrow
+findArrowByNodes _    _    [] = Nothing
+findArrowByNodes orig dest (a:as)
+   | arrowNode1 a == orig && arrowNode2 a == dest
+   = Just a
+   | otherwise
+   = findArrowByNodes orig dest as
+
+type RelativePos   = Double -- [0,1] numerical range
+type RelativeSpeed = Double -- [0,1] numerical range
 
 -- | Initial (default) game state.
 neutralGameState :: GameState

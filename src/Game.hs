@@ -303,16 +303,26 @@ gamePlay' (player, objs, graph) = loopPre ([],[],0) $
        processPlayerMovement = processPlayerMovement' player graph
 
        processPlayerMovement' :: Player -> Graph -> SF GraphInput (Player, Graph)
-       processPlayerMovement' player graph = loopPre (player, graph)
-          (arr $ \(graphInput, (player, graph)) -> case player of
-                     Nothing           -> ((player, graph), (player, graph))
-                     Just (n, Nothing) -> undefined -- Check if needs to move forward upon click
-                     Just (n, tInfo)   -> undefined -- Move forward, possibly altering graph
-          )
-
-       -- Wrong! This does not know about delta T!
-       movePlayerForward :: Graph -> TransitionInfo -> (TransitionInfo, Graph)
-       movePlayerForward  = undefined
+       processPlayerMovement' player graph = loopPre (player, graph) $ 
+          (proc (graphInput, (player, graph)) ->
+               case player of
+                     Nothing              -> returnA -< (player, graph)
+                     Just (n, Nothing)    -> returnA -< undefined -- Check if needs to move forward upon click
+                     Just (n, Just tInfo) -> -- Move forward, possibly altering graph
+                                             movePlayerForward -< ((n, tInfo), graph)
+          ) >>> arr dup
+         
+       movePlayerForward :: SF ((NodeId, TransitionInfo), Graph) (Player, Graph)
+       movePlayerForward = flip iterFrom undefined $
+                             \_ ((orig, (TransitionInfo progress dest)), graph) dt _ ->
+                                let dp = dt * (graphSpeedF graph orig dest progress)
+                                    p' = progress + dp
+                                in if p' >= 1
+                                     then -- Finish moving
+                                          (Just (dest, Nothing), graph)
+                                     else -- Continue moving
+                                          (Just (orig, (Just (TransitionInfo p' dest))), 
+                                           graph)
 
        -- Parallely apply all object functions
        processObjMovement :: SF ObjectInput (IL ObjectOutput)
