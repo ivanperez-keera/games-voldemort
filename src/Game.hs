@@ -299,15 +299,20 @@ gamePlay' (player, objs, graph) = loopPre ([],[],0) $
        adaptInput = arr (\(gi,(os,cs,pts)) -> ObjectInput gi cs (map outputObject os))
 
        -- Process player movement
-       processPlayerMovement :: SF () (Player, Graph)
+       processPlayerMovement :: SF Controller (Player, Graph)
        processPlayerMovement = processPlayerMovement' player graph
 
-       processPlayerMovement' :: Player -> Graph -> SF GraphInput (Player, Graph)
+       processPlayerMovement' :: Player -> Graph -> SF Controller (Player, Graph)
        processPlayerMovement' player graph = loopPre (player, graph) $ 
-          (proc (graphInput, (player, graph)) ->
+          (proc (c, i@(player, graph)) ->
                case player of
-                     Nothing              -> returnA -< (player, graph)
-                     Just (n, Nothing)    -> returnA -< undefined -- Check if needs to move forward upon click
+                     Nothing              -> returnA -< i
+                     Just (n, Nothing)    -> -- Check if needs to move forward upon click
+                                             returnA -< 
+                                                 (if controllerClick c
+                                                    then maybe i (startMoving graph n) $
+                                                           graph `nodeAtPos` (controllerPos c)
+                                                    else i)
                      Just (n, Just tInfo) -> -- Move forward, possibly altering graph
                                              movePlayerForward -< ((n, tInfo), graph)
           ) >>> arr dup

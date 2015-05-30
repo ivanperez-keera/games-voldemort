@@ -10,9 +10,12 @@ module GameState where
 
 -- import FRP.Yampa as Yampa
 
+import Control.Applicative
+import Data.List
 import Data.Maybe (fromJust)
 import Objects
 import Physics.TwoDimensions.Dimensions
+import FRP.Yampa.VectorSpace
 
 -- | The running state is given by a bunch of 'Objects' and the current general
 -- 'GameInfo'. The latter contains info regarding the current level, the number
@@ -27,6 +30,18 @@ data GameState = GameState
   , player      :: Player
   , graph       :: Graph
   }
+
+nodeAtPos :: Graph -> Pos2D -> Maybe NodeId
+nodeAtPos graph pos =
+  nodeId <$> (find (pos `ontoNode`) $ nodes graph)
+
+ontoNode :: Pos2D -> Node -> Bool
+ontoNode pos node =
+  norm (pos ^-^ (nodePos node)) < nodeSize
+ where nodeSize = 20
+
+startMoving :: Graph -> NodeId -> NodeId -> (Player, Graph)
+startMoving graph orig dest = (Just (orig, Just (TransitionInfo 0 dest)), graph)
 
 type Player = Maybe (NodeId, Maybe TransitionInfo)
 
