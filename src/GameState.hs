@@ -11,6 +11,7 @@ module GameState where
 -- import FRP.Yampa as Yampa
 
 import Objects
+import Physics.TwoDimensions.Dimensions
 
 -- | The running state is given by a bunch of 'Objects' and the current general
 -- 'GameInfo'. The latter contains info regarding the current level, the number
@@ -22,13 +23,45 @@ import Objects
 data GameState = GameState
   { gameObjects :: Objects
   , gameInfo    :: GameInfo
+  , player      :: Maybe (NodeId, Maybe TransitionInfo)
+  , graph       :: Graph
   }
+
+data TransitionInfo = TransitionInfo
+  { relativePos  :: RelativePos
+  , transitionId :: NodeId -- This assumes max one link between any two nodes
+  }
+
+data Graph = Graph
+  { nodes  :: [Node]
+  , arrows :: [Arrow]
+  }
+
+data Node = Node
+  { nodeId    :: NodeId
+  , nodePos   :: Pos2D
+  , nodeFinal :: Bool
+  }
+
+type NodeId = Int
+
+data Arrow = Arrow
+  { arrowNode1 :: NodeId
+  , arrowNode2 :: NodeId
+  , speedF     :: RelativePos -> RelativeSpeed
+  , coordsF    :: RelativePos -> (Pos2D, Vel2D)
+  }
+
+type RelativePos   = Float -- [0,1] numerical range
+type RelativeSpeed = Float -- [0,1] numerical range
 
 -- | Initial (default) game state.
 neutralGameState :: GameState
 neutralGameState = GameState
   { gameObjects = []
   , gameInfo    = neutralGameInfo
+  , player      = Nothing
+  , graph       = Graph [] []
   }
 
 -- | The gameinfo tells us the current game state (running, paused, etc.)
