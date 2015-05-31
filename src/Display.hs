@@ -300,16 +300,16 @@ paintArrow :: Surface
            -> Arrow
            -> IO ()
 paintArrow screen a = do
-    Prelude.flip mapM_ ds $ \((px,py), (dx,dy)) ->
+    Prelude.flip mapM_ ds $ \(((px,py), (dx,dy)), s) ->
         let a = atan2 dy dx
-            d = sqrt $ dx*dx + dy*dy
+            d = (10 *) . sqrt $ dx*dx + dy*dy
             col = 0xFF0088FF
         in SDLP.filledTrigon screen
-            (round $ px +  d * cos a) (round $ py + d * sin a)
-            (round $ px + d * cos (a+pi/1.2)) (round $ py + d * sin (a+pi/1.2))
-            (round $ px + d * cos (a-pi/1.2)) (round $ py + d * sin (a-pi/1.2))
+            (round $ px +  s*d * cos a) (round $ py + s*d * sin a)
+            (round $ px + 10 * cos (a+pi/1.8)) (round $ py + 10 * sin (a+pi/1.8))
+            (round $ px + 10 * cos (a-pi/1.8)) (round $ py + 10 * sin (a-pi/1.8))
             (SDL.Pixel col)
-        where ds = map (coordsF a) (arrowHeads a)
+        where ds = map (coordsF a) (arrowHeads a) `zip` map (speedF a) (arrowHeads a)
 
 
 paintNode :: Surface
@@ -320,7 +320,7 @@ paintNode screen n =
         (round . fst $ nodePos n)
         (round . snd $ nodePos n)
         20
-        (if nodeFinal n then SDL.Pixel 0x0099FFFF else SDL.Pixel 0x0099FFFF)
+        (if nodeFinal n then SDL.Pixel 0xFF9900FF else SDL.Pixel 0x0099FFFF)
 
 paintGraph :: Surface
            -> Graph
@@ -347,4 +347,3 @@ paintPlayer screen g (Just (nid, Just tinfo)) = Prelude.flip (maybe (return ()))
             (round px) (round py) 15
             (SDL.Pixel 0x77FF00FF)
     where ma = find (\a -> nid == arrowNode1 a && transitionId tinfo == arrowNode2 a) $ arrows g
-
