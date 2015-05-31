@@ -7,7 +7,9 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
 import Data.IORef
 import Data.Maybe
+import Data.List (find)
 import Graphics.UI.SDL       as SDL
+import qualified Graphics.UI.SDL.Primitives as SDLP
 import qualified Graphics.UI.SDL.TTF as TTF
 import Graphics.UI.SDL.Image as Image
 
@@ -22,13 +24,13 @@ import Levels
 -- This function is ad-hoc in two senses: first, because it
 -- has the paths to the files hard-coded inside. And second,
 -- because it loads the specific resources that are needed,
--- not a general 
+-- not a general
 --
 loadResources :: IO (Maybe ResourceMgr)
 loadResources = runMaybeT $ do
   -- Font initialization
   ttfOk <- lift TTF.init
-  
+
   -- Load the fonts we need
   let gameFont = "data/lacuna.ttf"
   font  <- liftIO $ TTF.tryOpenFont gameFont 32 -- What does the 32 do?
@@ -62,7 +64,7 @@ loadResources = runMaybeT $ do
 
   -- Return Nothing or embed in Resources
   res <- case (myFont, blockHit) of
-           (Just f, Just b) -> let 
+           (Just f, Just b) -> let
                                in return (Resources f b Nothing ball b1 b2 b3 paddle Nothing)
            _                        -> do liftIO $ putStrLn "Some resources could not be loaded"
                                           mzero
@@ -101,7 +103,7 @@ audio :: Resources -> GameState -> IO()
 audio resources shownState = do
   -- Start bg music if necessary
   playing <- musicPlaying
-  unless playing $ awhen (bgMusic resources) playMusic 
+  unless playing $ awhen (bgMusic resources) playMusic
 
   -- Play object hits
   mapM_ (audioObject resources) $ gameObjects shownState
@@ -112,7 +114,7 @@ audioObject resources object = when (objectHit object) $
     _           -> return ()
 
 display :: Resources -> GameState -> IO()
-display resources shownState = do 
+display resources shownState = do
   -- Obtain surface
   screen <- getVideoSurface
 
@@ -144,8 +146,14 @@ display resources shownState = do
   let rect = SDL.Rect (round gameLeft) (round gameTop) (round gameWidth) (round gameHeight)
   SDL.blitSurface surface Nothing screen $ Just rect
 
+  -- voldemort
+  paintGraph screen $ graph shownState
+  paintPlayer screen (graph shownState) $ player shownState
+
   -- Double buffering
   SDL.flip screen
+
+
 
 paintGeneral screen resources over = void $ do
   -- Paint screen green
@@ -189,8 +197,8 @@ paintObject resources screen object = do
   red <- mapRGB format 0xFF 0 0
   case objectKind object of
     (Paddle (w,h))  -> void $ do let bI = imgSurface $ paddleImg resources
-                                 t <- mapRGB (surfaceGetPixelFormat bI) 0 255 0 
-                                 setColorKey bI [SrcColorKey, RLEAccel] t 
+                                 t <- mapRGB (surfaceGetPixelFormat bI) 0 255 0
+                                 setColorKey bI [SrcColorKey, RLEAccel] t
                                  SDL.blitSurface bI Nothing screen $ Just (SDL.Rect x y (round w) (round h))
     (Block e (w,h)) -> void $ do let bI = imgSurface $ blockImage e
                                  SDL.blitSurface bI Nothing screen $ Just (SDL.Rect x y (round w) (round h))
@@ -199,8 +207,8 @@ paintObject resources screen object = do
                                      sz = round (2*r)
                                  -- b <- convertSurface (imgSurface $ ballImg resources) (format) []
 				 let bI = imgSurface $ ballImg resources
-                                 t <- mapRGB (surfaceGetPixelFormat bI) 0 255 0 
-                                 setColorKey bI [SrcColorKey, RLEAccel] t 
+                                 t <- mapRGB (surfaceGetPixelFormat bI) 0 255 0
+                                 setColorKey bI [SrcColorKey, RLEAccel] t
                                  SDL.blitSurface bI Nothing screen $ Just (SDL.Rect x' y' sz sz)
     _              -> return ()
   where format = surfaceGetPixelFormat screen
@@ -243,7 +251,7 @@ loadNewResources mgr state = do
   newResources <- case newState of
                     (GameLoading _) | (newState /= oldState)
                                     -> updateAllResources oldResources newState
-                    _               -> return oldResources 
+                    _               -> return oldResources
 
   let manager' = ResourceManager { lastKnownStatus = newState
                                  , resources       = newResources
@@ -283,3 +291,58 @@ updateAllResources res (GameLoading n) = do
                      return $ Just (Image newBgFP img')
 
   return (res { bgImage = newBg, bgMusic = newMusic })
+
+
+
+paintArrow :: Surface
+           -> Arrow
+           -> IO ()
+paintArrow screen a = do
+    Prelude.flip mapM_ ds $ \((px,py), (dx,dy)) ->
+        let a = atan2 dy dx
+            d = sqrt $ dx*dx + dy*dy
+            col = 0xFF0088FF
+        in SDLP.filledTrigon screen
+            (round $ px +  d * cos a) (round $ py + d * sin a)
+            (round $ px + d * cos (a+pi/1.2)) (round $ py + d * sin (a+pi/1.2))
+            (round $ px + d * cos (a-pi/1.2)) (round $ py + d * sin (a-pi/1.2))
+            (SDL.Pixel col)
+        where ds = map (coordsF a) (arrowHeads a)
+
+
+paintNode :: Surface
+          -> Node
+          -> IO ()
+paintNode screen n =
+    void $ SDLP.filledCircle screen
+        (round . fst $ nodePos n)
+        (round . snd $ nodePos n)
+        20
+        (if nodeFinal n then SDL.Pixel 0x0099FFFF else SDL.Pixel 0x0099FFFF)
+
+paintGraph :: Surface
+           -> Graph
+           -> IO ()
+paintGraph screen n =
+    mapM_ (paintNode screen) (nodes n) >>
+    mapM_ (paintArrow screen) (arrows n)
+
+paintPlayer :: Surface
+            -> Graph
+            -> Player
+            -> IO ()
+paintPlayer _ _ Nothing = return ()
+paintPlayer screen g (Just (nid, Nothing)) = Prelude.flip (maybe (return ())) mn $ \n ->
+    void $ SDLP.filledCircle screen
+        (round . fst $ nodePos n)
+        (round . snd $ nodePos n)
+        15
+        (SDL.Pixel 0x77FF00FF)
+    where mn = find ((nid ==). nodeId) $ nodes g
+paintPlayer screen g (Just (nid, Just tinfo)) = Prelude.flip (maybe (return ())) ma $ \a ->
+    void $ let ((px,py), _) = coordsF a $ relativePos tinfo
+           in SDLP.filledCircle screen
+            (round px) (round py) 15
+            (SDL.Pixel 0x77FF00FF)
+    where ma = find (\a -> nid == arrowNode1 a && transitionId tinfo == arrowNode2 a) $ arrows g
+
