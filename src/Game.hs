@@ -266,9 +266,6 @@ defaultRunningState = RunningState [] [] 0
 
 type InitialState = (Player, ObjectSFs, Graph)
 
-quickTraceShow :: Show a => a -> a
-quickTraceShow x = trace (show x) x
-
 -- ** Game with partial state information
 
 -- | Given an initial list of objects, it runs the game, presenting the output
@@ -298,10 +295,17 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
       let ol' = maybe ol (\po -> insertIL_ po ol) (playerObject p' g')
       cs'     <- detectObjectCollisions -< ol'
       pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
-      dead    <- edge                   -< stateLocked p' g'
+      let playerHit =
+            isMoving p' && 
+             (not $ null $ collisionsBetween (=="player") ("enemy" `isPrefixOf`) cs')
+      dead    <- edge                   -< (stateLocked p' g' || playerHit)
       returnA -< ((p', g', elems, dead, pts'), (elems, cs', pts'))
    )
  where
+
+       isMoving (Just (_, Just _)) = True
+       isMoving _                  = False
+
        playerRadius = 10
        playerObject mPlayer graph = flip fmap (playerPosition graph mPlayer) $ \p ->
                                       ObjectOutput (Object { objectName           = "player"
@@ -404,6 +408,14 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                hasBall     = any ((=="ball").fst)
                countBlocks = length . filter ((isPrefixOf "block").fst)
 
+type ObjectIdF = String -> Bool
+
+collisionsBetween :: ObjectIdF -> ObjectIdF -> Collisions -> Collisions
+collisionsBetween id1 id2 = filter (collisionBetween id1 id2)
+  
+collisionBetween id1 id2 (Collision cd) =
+  any (id1.fst) cd && any (id2.fst) cd
+
 -- * Game objects
 --
 -- | Objects initially present: the walls, the ball, the paddle and the blocks.
@@ -415,6 +427,7 @@ initialObjects level = listToIL $
     , objSideBottom
     -- , objPaddle   
     -- , objBall
+    , objEnemy
     ]
     -- ++ map (\p -> objBlockAt p (blockWidth, blockHeight)) (blockPoss $ levels!!level)
 
@@ -435,6 +448,9 @@ positionInterpolate p1@(x1,y1) (x2,y2) prog =
        diffY = (y2 - y1)
        dpos  = (prog * diffX, prog * diffY)
        
+-- *** Enemy
+objEnemy :: ObjectSF
+objEnemy = bouncingBall "enemy1" (300, 300) (160, -150)
 
 -- *** Ball
 
@@ -444,32 +460,32 @@ positionInterpolate p1@(x1,y1) (x2,y2) prog =
 -- ('followPaddleDetectLaunch'), then switches ('switch') over to start
 -- bounding around, until it hits the floor ('bounceAroundDetectMiss').
 --
-objBall :: ObjectSF
-objBall = switch followPaddleDetectLaunch   $ \p -> 
-          switch (bounceAroundDetectMiss p) $ \_ ->
-          objBall
-    where
-        -- Yampa's edge is used to turn the continuous
-        -- signal produced by controllerClick into an
-        -- event-carrying signal, only true the instant
-        -- the mouse button is clicked.
-        followPaddleDetectLaunch = proc oi -> do
-            o     <- followPaddle -< oi
-            click <- edge         -< controllerClick (userInput oi) 
-            returnA -< (o, click `tag` (objectPos (outputObject o)))
+-- objBall :: ObjectSF
+-- objBall = switch followPaddleDetectLaunch   $ \p -> 
+--           switch (bounceAroundDetectMiss p) $ \_ ->
+--           objBall
+--     where
+--         -- Yampa's edge is used to turn the continuous
+--         -- signal produced by controllerClick into an
+--         -- event-carrying signal, only true the instant
+--         -- the mouse button is clicked.
+--         followPaddleDetectLaunch = proc oi -> do
+--             o     <- followPaddle -< oi
+--             click <- edge         -< controllerClick (userInput oi) 
+--             returnA -< (o, click `tag` (objectPos (outputObject o)))
+-- 
+--         bounceAroundDetectMiss p = proc oi -> do
+--             o    <- bouncingBall p initialBallVel -< oi
+--             miss <- collisionWithBottom           -< collisions oi
+--             returnA -< (o, miss) 
 
-        bounceAroundDetectMiss p = proc oi -> do
-            o    <- bouncingBall p initialBallVel -< oi
-            miss <- collisionWithBottom           -< collisions oi
-            returnA -< (o, miss) 
-
--- | Fires an event when the ball *enters in* a collision with the
--- bottom wall.
---
--- NOTE: even if the overlap is not corrected, 'edge' makes
--- the event only take place once per collision.
-collisionWithBottom :: SF Collisions (Event ())
-collisionWithBottom = inCollisionWith "ball" "bottomWall" ^>> edge
+-- -- | Fires an event when the ball *enters in* a collision with the
+-- -- bottom wall.
+-- --
+-- -- NOTE: even if the overlap is not corrected, 'edge' makes
+-- -- the event only take place once per collision.
+-- collisionWithBottom :: SF Collisions (Event ())
+-- collisionWithBottom = inCollisionWith "ball" "bottomWall" ^>> edge
 
 -- | Ball follows the paddle if there is one, and it's out of the screen
 -- otherwise). To avoid reacting to collisions, this ball is non-interactive.
@@ -504,10 +520,10 @@ followPaddle = arr $ \oi ->
 -- there is a bounce, it takes a snapshot of the point of
 -- collision and corrected velocity, and starts again.
 --
-bouncingBall :: Pos2D -> Vel2D -> ObjectSF
-bouncingBall p0 v0 =
+bouncingBall :: String -> Pos2D -> Vel2D -> ObjectSF
+bouncingBall bid p0 v0 =
   switch progressAndBounce
-         (uncurry bouncingBall) -- Somehow it would be clearer like this:
+         (uncurry (bouncingBall bid)) -- Somehow it would be clearer like this:
                                 -- \(p', v') -> bouncingBall p' v')
  where
 
@@ -525,12 +541,12 @@ bouncingBall p0 v0 =
        --    \ ==                      ==    == / \                    ==
        --     -==----> freeBall' ----->==--->==--------> ballBounce -->==
        --      ==========================    ============================
-       progressAndBounce = (arr id &&& freeBall') >>> (arr snd &&& ballBounce)
+       progressAndBounce = (arr id &&& freeBall') >>> (arr snd &&& ballBounce bid)
 
 	   -- Position of the ball, starting from p0 with velicity v0, since the
 	   -- time of last switching (or being fired, whatever happened last)
 	   -- provided that no obstacles are encountered.
-       freeBall' = freeBall p0 v0
+       freeBall' = freeBall bid p0 v0
 
 -- | Detect if the ball must bounce and, if so, take a snapshot of the object's
 -- current position and velocity.
@@ -540,8 +556,8 @@ bouncingBall p0 v0 =
 -- case because the ball never-ever bounces immediately as fired from the
 -- paddle.  This might not be true if a block is extremely close, if you add
 -- flying enemies to the game, etc.
-ballBounce :: SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
-ballBounce = noEvent --> ballBounce'
+ballBounce :: String -> SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
+ballBounce bid = noEvent --> ballBounce' bid
 
 -- | Detect if the ball must bounce and, if so, take a snapshot of the object's
 -- current position and velocity.
@@ -551,23 +567,22 @@ ballBounce = noEvent --> ballBounce'
 -- It proceeds by detecting whether any collision affects
 -- the ball's velocity, and outputs a snapshot of the object
 -- position and the corrected velocity if necessary.
-ballBounce' :: SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
-ballBounce' = proc (ObjectInput ci cs os, o) -> do
+ballBounce' :: String -> SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
+ballBounce' bid = proc (ObjectInput ci cs os, o) -> do
   -- HN 2014-09-07: With the present strategy, need to be able to
   -- detect an event directly after 
   -- ev <- edgeJust -< changedVelocity "ball" cs 
-  let ev = maybe noEvent Event (changedVelocity "ball" cs)
+  let ev = maybe noEvent Event (changedVelocity bid cs)
   returnA -< fmap (\v -> (objectPos (outputObject o), v)) ev
 
 -- | Position of the ball, starting from p0 with velicity v0, since the time of
 -- last switching (that is, collision, or the beginning of time --being fired
 -- from the paddle-- if never switched before), provided that no obstacles are
 -- encountered.
-freeBall :: Pos2D -> Vel2D -> ObjectSF
-freeBall p0 v0 = proc (ObjectInput ci cs os) -> do
+freeBall :: String -> Pos2D -> Vel2D -> ObjectSF
+freeBall name p0 v0 = proc (ObjectInput ci cs os) -> do
 
   -- Detect collisions
-  let name = "ball"
   let isHit = inCollision name cs
 
   -- Cap speed
@@ -741,8 +756,6 @@ objWall name side pos = proc (ObjectInput ci cs os) -> do
                         })
                 noEvent
 
-for5 :: (a,b,c,d,e) -> d
-for5 (a,b,c,d,e) = d
+quickTraceShow :: Show a => a -> a
+quickTraceShow x = trace (show x) x
 
-fth5 :: (a,b,c,d,e) -> d
-fth5 (a,b,c,d,e) = d
