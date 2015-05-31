@@ -209,10 +209,16 @@ gamePlayOrPause lives level pts = gamePlay lives level pts
 -- with the more general 'GameState' using the known number of lives and
 -- points.
 gamePlay :: Int -> Int -> Int -> SF Controller GameState
-gamePlay lives level pts =
-  gamePlay' initialState  >>> composeGameState lives level pts
+gamePlay lives level pts = 
+  gamePlay'' initialState >>> composeGameState lives level pts
  where 
    initialState = (Just (0, Nothing), initialObjects level, initialGraph level)
+
+gamePlay'' st@(p,sf,g) = dSwitch
+  (gamePlay' st >>> (arr id &&& playerIsDead))
+  (\(p',g',o,pt) -> gamePlay'' (Just (0, Nothing),sf,g'))
+ where 
+   playerIsDead = arr $ \(p,g,o,d,pt) -> d `tag` (p,g,o,pt)
 
 -- | Based on the internal gameplay info, compose the main game state and
 -- detect when a live is lost. When that happens, restart this SF
@@ -260,6 +266,9 @@ defaultRunningState = RunningState [] [] 0
 
 type InitialState = (Player, ObjectSFs, Graph)
 
+quickTraceShow :: Show a => a -> a
+quickTraceShow x = trace (show x) x
+
 -- ** Game with partial state information
 
 -- | Given an initial list of objects, it runs the game, presenting the output
@@ -289,7 +298,8 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
       let ol' = maybe ol (\po -> insertIL_ po ol) (playerObject p' g')
       cs'     <- detectObjectCollisions -< ol'
       pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
-      returnA -< ((p', g', elems, NoEvent, pts'), (elems, cs', pts'))
+      dead    <- edge                   -< stateLocked p' g'
+      returnA -< ((p', g', elems, dead, pts'), (elems, cs', pts'))
    )
  where
        playerRadius = 10
@@ -330,7 +340,7 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                                                                                 then startMoving g n d
                                                                                 else i
                                                                       ) $
-                                                               (\x -> trace (show (x, adjustedPos)) x) $
+                                                               -- (\x -> trace (show (x, adjustedPos)) x) $
                                                                  g `nodeAtPos` adjustedPos
                                                       else i)
                        Just (n, Just tInfo) -> -- Move forward, possibly altering graph
