@@ -10,9 +10,11 @@ module GameState where
 
 -- import FRP.Yampa as Yampa
 
+import Debug.Trace
 import Control.Applicative
 import Data.List
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, catMaybes)
+import qualified Data.IntSet as S
 import Objects
 import Physics.TwoDimensions.Dimensions
 import FRP.Yampa.VectorSpace
@@ -70,6 +72,7 @@ data Node = Node
   , nodePos   :: Pos2D
   , nodeFinal :: Bool
   }
+ deriving Show
 
 type NodeId = Int
 
@@ -101,6 +104,35 @@ findArrowByNodes orig dest (a:as)
 
 type RelativePos   = Double -- [0,1] numerical range
 type RelativeSpeed = Double -- [0,1] numerical range
+
+stateLocked :: Player -> Graph -> Bool
+stateLocked p g = case p of
+  Just (n,Nothing) -> not (finalReachable g n)
+  _                -> False
+
+reachable1 :: Graph -> NodeId -> [NodeId]
+reachable1 graph nid =
+  map arrowNode2 $ filter (isOrig nid) (arrows graph)
+
+reachableN :: Graph -> NodeId -> [NodeId]
+reachableN graph nid = S.toList $ reachableN' graph nid (S.singleton nid)
+
+reachableN' graph nid visited =
+  if reachable `S.isSubsetOf` visited
+   then visited
+   else S.foldr (reachableN' graph) (visited `S.union` reachable) new
+  where reachable = S.fromList (reachable1 graph nid)
+        new       = reachable S.\\ visited
+  
+isOrig :: NodeId -> Arrow -> Bool
+isOrig nid arrow = nid == (arrowNode1 arrow)
+  
+isDest :: NodeId -> Arrow -> Bool
+isDest nid arrow = nid == (arrowNode2 arrow)
+
+finalReachable g n = let reachable = map (findNode g) $ reachableN g n
+  in -- trace (show (n, reachable))
+      (any nodeFinal $ catMaybes reachable)
 
 -- | Initial (default) game state.
 neutralGameState :: GameState
@@ -144,3 +176,5 @@ data GameStatus = GamePlaying
                 | GameFinished
                 | GameStarted
  deriving Eq
+
+quickTrace x = trace (show x) x 

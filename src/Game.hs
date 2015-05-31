@@ -209,10 +209,22 @@ gamePlayOrPause lives level pts = gamePlay lives level pts
 -- with the more general 'GameState' using the known number of lives and
 -- points.
 gamePlay :: Int -> Int -> Int -> SF Controller GameState
+<<<<<<< HEAD
 gamePlay lives level pts =
   gamePlay' initialState  >>> composeGameState lives level pts
  where
+=======
+gamePlay lives level pts = 
+  gamePlay'' initialState >>> composeGameState lives level pts
+ where 
+>>>>>>> cb8be34c1a25280ec275a2f7b8b79e4d9783fad2
    initialState = (Just (0, Nothing), initialObjects level, initialGraph level)
+
+gamePlay'' st@(p,sf,g) = dSwitch
+  (gamePlay' st >>> (arr id &&& playerIsDead))
+  (\(p',g',o,pt) -> gamePlay'' (Just (0, Nothing),sf,g'))
+ where 
+   playerIsDead = arr $ \(p,g,o,d,pt) -> d `tag` (p,g,o,pt)
 
 -- | Based on the internal gameplay info, compose the main game state and
 -- detect when a live is lost. When that happens, restart this SF
@@ -286,12 +298,20 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
       oi      <- adaptInput             -< (c, (o, cs, pt))
       ol      <- processObjMovement     -< oi
       elems   <- arr elemsIL            -< ol
-      let ol' = maybe ol (\po -> insertIL_ po ol) (playerObject p' g')
+      let ol' = if isMoving p' then maybe ol (\po -> insertIL_ po ol) (playerObject p' g') else ol
       cs'     <- detectObjectCollisions -< ol'
       pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
-      returnA -< ((p', g', elems, NoEvent, pts'), (elems, cs', pts'))
+      let playerHit =
+            isMoving p' && 
+             (not $ null $ collisionsBetween (=="player") ("enemy" `isPrefixOf`) cs')
+      dead    <- edge                   -< (stateLocked p' g' || playerHit)
+      returnA -< ((p', g', elems, dead, pts'), (elems, cs', pts'))
    )
  where
+
+       isMoving (Just (_, Just _)) = True
+       isMoving _                  = False
+
        playerRadius = 10
        playerObject mPlayer graph = flip fmap (playerPosition graph mPlayer) $ \p ->
                                       ObjectOutput (Object { objectName           = "player"
@@ -330,7 +350,7 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                                                                                 then startMoving g n d
                                                                                 else i
                                                                       ) $
-                                                               (\x -> trace (show (x, adjustedPos)) x) $
+                                                               -- (\x -> trace (show (x, adjustedPos)) x) $
                                                                  g `nodeAtPos` adjustedPos
                                                       else i)
                        Just (n, Just tInfo) -> -- Move forward, possibly altering graph
@@ -394,6 +414,14 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                hasBall     = any ((=="ball").fst)
                countBlocks = length . filter ((isPrefixOf "block").fst)
 
+type ObjectIdF = String -> Bool
+
+collisionsBetween :: ObjectIdF -> ObjectIdF -> Collisions -> Collisions
+collisionsBetween id1 id2 = filter (collisionBetween id1 id2)
+  
+collisionBetween id1 id2 (Collision cd) =
+  any (id1.fst) cd && any (id2.fst) cd
+
 -- * Game objects
 --
 -- | Objects initially present: the walls, the ball, the paddle and the blocks.
@@ -406,6 +434,7 @@ initialObjects level = listToIL $
     -- , objPaddle
     -- , objBall
     ]
+    ++ objEnemies
     -- ++ map (\p -> objBlockAt p (blockWidth, blockHeight)) (blockPoss $ levels!!level)
 
 initialGraph :: Int -> Graph
@@ -424,6 +453,7 @@ positionInterpolate p1@(x1,y1) (x2,y2) prog =
  where diffX = (x2 - x1)
        diffY = (y2 - y1)
        dpos  = (prog * diffX, prog * diffY)
+<<<<<<< HEAD
 
 arrowArray :: Pos2D
            -> Pos2D
@@ -492,6 +522,20 @@ followPaddle = arr $ \oi ->
                                , collisionEnergy      = 0
                                , displacedOnCollision = False
                                }
+=======
+       
+-- *** Enemy
+objEnemies :: [ObjectSF]
+objEnemies =
+  [ bouncingBall "enemy1" (300, 300) (360, -350)
+  , bouncingBall "enemy2" (500, 300) (-300, -250)
+  , bouncingBall "enemy3" (200, 100) (-300, -250)
+  , bouncingBall "enemy4" (100, 200) (-200, -150)
+  ]
+
+-- *** Ball
+
+>>>>>>> cb8be34c1a25280ec275a2f7b8b79e4d9783fad2
 
 -- A bouncing ball moves freely until there is a collision, then bounces and
 -- goes on and on.
@@ -500,10 +544,10 @@ followPaddle = arr $ \oi ->
 -- there is a bounce, it takes a snapshot of the point of
 -- collision and corrected velocity, and starts again.
 --
-bouncingBall :: Pos2D -> Vel2D -> ObjectSF
-bouncingBall p0 v0 =
+bouncingBall :: String -> Pos2D -> Vel2D -> ObjectSF
+bouncingBall bid p0 v0 =
   switch progressAndBounce
-         (uncurry bouncingBall) -- Somehow it would be clearer like this:
+         (uncurry (bouncingBall bid)) -- Somehow it would be clearer like this:
                                 -- \(p', v') -> bouncingBall p' v')
  where
 
@@ -521,12 +565,12 @@ bouncingBall p0 v0 =
        --    \ ==                      ==    == / \                    ==
        --     -==----> freeBall' ----->==--->==--------> ballBounce -->==
        --      ==========================    ============================
-       progressAndBounce = (arr id &&& freeBall') >>> (arr snd &&& ballBounce)
+       progressAndBounce = (arr id &&& freeBall') >>> (arr snd &&& ballBounce bid)
 
 	   -- Position of the ball, starting from p0 with velicity v0, since the
 	   -- time of last switching (or being fired, whatever happened last)
 	   -- provided that no obstacles are encountered.
-       freeBall' = freeBall p0 v0
+       freeBall' = freeBall bid p0 v0
 
 -- | Detect if the ball must bounce and, if so, take a snapshot of the object's
 -- current position and velocity.
@@ -536,8 +580,8 @@ bouncingBall p0 v0 =
 -- case because the ball never-ever bounces immediately as fired from the
 -- paddle.  This might not be true if a block is extremely close, if you add
 -- flying enemies to the game, etc.
-ballBounce :: SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
-ballBounce = noEvent --> ballBounce'
+ballBounce :: String -> SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
+ballBounce bid = noEvent --> ballBounce' bid
 
 -- | Detect if the ball must bounce and, if so, take a snapshot of the object's
 -- current position and velocity.
@@ -547,23 +591,28 @@ ballBounce = noEvent --> ballBounce'
 -- It proceeds by detecting whether any collision affects
 -- the ball's velocity, and outputs a snapshot of the object
 -- position and the corrected velocity if necessary.
-ballBounce' :: SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
-ballBounce' = proc (ObjectInput ci cs os, o) -> do
+ballBounce' :: String -> SF (ObjectInput, ObjectOutput) (Event (Pos2D, Vel2D))
+ballBounce' bid = proc (ObjectInput ci cs os, o) -> do
   -- HN 2014-09-07: With the present strategy, need to be able to
+<<<<<<< HEAD
   -- detect an event directly after
   -- ev <- edgeJust -< changedVelocity "ball" cs
   let ev = maybe noEvent Event (changedVelocity "ball" cs)
+=======
+  -- detect an event directly after 
+  -- ev <- edgeJust -< changedVelocity "ball" cs 
+  let ev = maybe noEvent Event (changedVelocity bid cs)
+>>>>>>> cb8be34c1a25280ec275a2f7b8b79e4d9783fad2
   returnA -< fmap (\v -> (objectPos (outputObject o), v)) ev
 
 -- | Position of the ball, starting from p0 with velicity v0, since the time of
 -- last switching (that is, collision, or the beginning of time --being fired
 -- from the paddle-- if never switched before), provided that no obstacles are
 -- encountered.
-freeBall :: Pos2D -> Vel2D -> ObjectSF
-freeBall p0 v0 = proc (ObjectInput ci cs os) -> do
+freeBall :: String -> Pos2D -> Vel2D -> ObjectSF
+freeBall name p0 v0 = proc (ObjectInput ci cs os) -> do
 
   -- Detect collisions
-  let name = "ball"
   let isHit = inCollision name cs
 
   -- Cap speed
@@ -588,6 +637,7 @@ freeBall p0 v0 = proc (ObjectInput ci cs os) -> do
 
   returnA -< livingObject obj
 
+<<<<<<< HEAD
 -- *** Player paddle
 
 -- | The paddle tries to be in line with the mouse/pointer/controller.
@@ -691,6 +741,8 @@ objBlockAt (x,y) (w,h) = proc (ObjectInput ci cs os) -> do
                       })
                dead
 
+=======
+>>>>>>> cb8be34c1a25280ec275a2f7b8b79e4d9783fad2
 -- *** Walls
 
 -- | Walls. Each wall has a side and a position.
@@ -737,8 +789,171 @@ objWall name side pos = proc (ObjectInput ci cs os) -> do
                         })
                 noEvent
 
-for5 :: (a,b,c,d,e) -> d
-for5 (a,b,c,d,e) = d
+quickTraceShow :: Show a => a -> a
+quickTraceShow x = trace (show x) x
 
-fth5 :: (a,b,c,d,e) -> d
-fth5 (a,b,c,d,e) = d
+-- Old code (to be removed)
+
+-- | Ball
+--
+-- A ball that follows the paddle until the user fires it
+-- ('followPaddleDetectLaunch'), then switches ('switch') over to start
+-- bounding around, until it hits the floor ('bounceAroundDetectMiss').
+--
+-- objBall :: ObjectSF
+-- objBall = switch followPaddleDetectLaunch   $ \p -> 
+--           switch (bounceAroundDetectMiss p) $ \_ ->
+--           objBall
+--     where
+--         -- Yampa's edge is used to turn the continuous
+--         -- signal produced by controllerClick into an
+--         -- event-carrying signal, only true the instant
+--         -- the mouse button is clicked.
+--         followPaddleDetectLaunch = proc oi -> do
+--             o     <- followPaddle -< oi
+--             click <- edge         -< controllerClick (userInput oi) 
+--             returnA -< (o, click `tag` (objectPos (outputObject o)))
+-- 
+--         bounceAroundDetectMiss p = proc oi -> do
+--             o    <- bouncingBall p initialBallVel -< oi
+--             miss <- collisionWithBottom           -< collisions oi
+--             returnA -< (o, miss) 
+
+-- -- | Fires an event when the ball *enters in* a collision with the
+-- -- bottom wall.
+-- --
+-- -- NOTE: even if the overlap is not corrected, 'edge' makes
+-- -- the event only take place once per collision.
+-- collisionWithBottom :: SF Collisions (Event ())
+-- collisionWithBottom = inCollisionWith "ball" "bottomWall" ^>> edge
+
+-- -- | Ball follows the paddle if there is one, and it's out of the screen
+-- -- otherwise). To avoid reacting to collisions, this ball is non-interactive.
+-- followPaddle :: ObjectSF
+-- followPaddle = arr $ \oi ->
+--   -- Calculate ball position, midway on top of the the paddle
+--   --
+--   -- This code allows for the paddle not to exist (Maybe), although that should
+--   -- never happen in practice.
+--   let mbPaddlePos = fmap objectPos $ find isPaddle (knownObjects oi)
+--       ballPos     = maybe (outOfScreen, outOfScreen)
+--                           ((paddleWidth/2, - ballHeight) ^+^)
+--                           mbPaddlePos
+--   in ObjectOutput (inertBallAt ballPos) noEvent
+--   where outOfScreen = (-10)
+--         inertBallAt p = Object { objectName           = "ball"
+--                                , objectKind           = Ball ballWidth
+--                                , objectPos            = p
+--                                , objectVel            = (0, 0)
+--                                , objectAcc            = (0, 0)
+--                                , objectDead           = False
+--                                , objectHit            = False
+--                                , canCauseCollisions   = False
+--                                , collisionEnergy      = 0
+--                                , displacedOnCollision = False
+--                                }
+--
+-- -- *** Blocks
+-- 
+-- -- | Block SF generator. It uses the blocks's size and position. The block's
+-- -- position is used for it's unique ID, which means that two simulatenously
+-- -- existing blocks should never have the same position. This is ok in this case
+-- -- because they are static, but would not work if they could move and be
+-- -- created dynamically.
+-- objBlockAt :: Pos2D -> Size2D -> ObjectSF
+-- objBlockAt (x,y) (w,h) = proc (ObjectInput ci cs os) -> do
+-- 
+--   -- Detect collisions
+--   let name  = "blockat" ++ show (x,y)
+--       isHit = inCollision name cs
+--   hit   <- edge -< isHit
+-- 
+--   -- Must be hit three times do disappear
+--   --
+--   -- If you want them to "recover" or self-heal with time,
+--   -- use the following code in place of lives.
+--   --
+--   -- recover <- delayEvent 5.0 -< hit
+--   -- lives <- accumHoldBy (+) 3 -< (hit `tag` (-1) `lMerge` recover `tag` 1) 
+--   lives <- accumHoldBy (+) 3 -< (hit `tag` (-1)) 
+--   -- 
+--   -- let lives = 3 -- Always perfect
+-- 
+--   -- Dead if out of lives.
+--   let isDead = lives <= 0
+--   dead <- edge -< isDead
+--   -- let isDead = False -- immortal blocks
+-- 
+--   returnA -< ObjectOutput 
+--                (Object{ objectName           = name
+--                       , objectKind           = Block lives (w, h)
+--                       , objectPos            = (x,y)
+--                       , objectVel            = (0,0)
+--                       , objectAcc            = (0,0)
+--                       , objectDead           = isDead
+--                       , objectHit            = isHit
+--                       , canCauseCollisions   = False
+--                       , collisionEnergy      = 0
+--                       , displacedOnCollision = False
+--                       })
+--                dead
+--
+-- -- *** Player paddle
+-- 
+-- -- | The paddle tries to be in line with the mouse/pointer/controller.
+-- --
+-- -- It has drag, to make the game a bit harder. Take a look at the code if you
+-- -- want to make it move faster or even instantaneously.
+-- --
+-- objPaddle :: ObjectSF
+-- objPaddle = proc (ObjectInput ci cs os) -> do
+-- 
+--   -- Detect collisions
+--   let name = "paddle"
+--   let isHit = inCollision name cs
+-- 
+--   -- Try to get to the mouse position, but with a capped
+--   -- velocity.
+-- 
+--   rec
+--       let v = limitNorm (20.0 *^ (refPosPaddle ci ^-^ p)) maxVNorm
+--       p <- (initPosPaddle ^+^) ^<< integral -< v
+-- 
+--   --  Use this code if you want instantaneous movement,
+--   --  particularly cool with the Wiimote, but remember to cap
+--   --  the balls velocity or you will get incredibly high
+--   --  velocities when the paddle hits the ball.
+--   --
+--   --  let p = refPosPaddle ci
+--   --  v <- derivative -< p
+-- 
+--   returnA -< livingObject $
+--                Object{ objectName           = name
+--                      , objectKind           = Paddle (paddleWidth,paddleHeight)
+--                      , objectPos            = p
+--                      , objectVel            = v
+--                      , objectAcc            = (0,0)
+--                      , objectDead           = False
+--                      , objectHit            = isHit
+--                      , canCauseCollisions   = True
+--                      , collisionEnergy      = 0
+--                      , displacedOnCollision = False
+--                      }
+-- 
+-- -- | Follow the controller's horizontal position, keeping a constant
+-- -- vertical position.
+-- refPosPaddle :: Controller -> Pos2D
+-- refPosPaddle c = (x', yPosPaddle)
+--     where
+--         (x, _) = controllerPos c
+--         x'     = inRange (0, gameWidth - paddleWidth) (x - (paddleWidth/2))
+-- 
+-- -- | The initial position of the paddle, horizontally centered.
+-- initPosPaddle :: Pos2D
+-- initPosPaddle = ((gameWidth - paddleWidth)/2, yPosPaddle)
+-- 
+-- -- | The paddle's vertical position, at a reasonable distance from the bottom.
+-- yPosPaddle :: Double
+-- yPosPaddle = gameHeight - paddleMargin
+
+
