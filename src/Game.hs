@@ -42,6 +42,7 @@ module Game (wholeGame) where
 import Data.List
 import Data.Tuple.Utils
 import FRP.Yampa
+import Debug.Trace
 
 -- General-purpose internal imports
 import Data.Extra.Ord
@@ -172,9 +173,12 @@ gameWithLives numLives level pts = dSwitch
 -- | Detect if the level is completed (ie. if there are no more blocks).
 isLevelCompleted :: SF GameState (Event GameState)
 isLevelCompleted = proc (s) -> do
-  over <- edge -< not $ any isBlock (map objectKind (gameObjects s))
+  over <- edge -< playerInFinalState s
   let snapshot = over `tag` s
   returnA -< snapshot
+ where playerInFinalState gstate = maybe False nodeFinal pnode
+        where p     = player gstate
+              pnode = maybe Nothing (findNode (graph gstate).fst) p
 
 -- ** Pausing
 
@@ -312,31 +316,47 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
        processPlayerMovement = processPlayerMovement' player graph
 
        processPlayerMovement' :: Player -> Graph -> SF Controller (Player, Graph)
-       processPlayerMovement' player graph = loopPre (player, graph) $ 
-          (proc (c, i@(player, graph)) ->
-               case player of
-                     Nothing              -> returnA -< i
-                     Just (n, Nothing)    -> -- Check if needs to move forward upon click
-                                             returnA -< 
-                                                 (if controllerClick c
-                                                    then maybe i (startMoving graph n) $
-                                                           graph `nodeAtPos` (controllerPos c)
-                                                    else i)
-                     Just (n, Just tInfo) -> -- Move forward, possibly altering graph
-                                             movePlayerForward -< ((n, tInfo), graph)
-          ) >>> arr dup
+       processPlayerMovement' player graph = switch 
+         ((loopPre (player, graph) $ 
+            (proc (c, i@(p, g)) ->
+                 case p of
+                       Nothing              -> returnA -< i
+                       Just (n, Nothing)    -> -- Check if needs to move forward upon click
+                                               returnA -< 
+                                                   (if controllerClick c
+                                                      then
+                                                           let adjustedPos = (controllerPos c ^-^ (gameLeft, gameTop))
+                                                           in maybe i (\d -> if connectedNodes g n d
+                                                                                then startMoving g n d
+                                                                                else i
+                                                                      ) $
+                                                               (\x -> trace (show (x, adjustedPos)) x) $
+                                                                 g `nodeAtPos` adjustedPos
+                                                      else i)
+                       Just (n, Just tInfo) -> -- Move forward, possibly altering graph
+                                               movePlayerForward -< ((n, tInfo), g)
+             ) >>> arr dup)
+            -- Pass result along, detect when the player stops moving
+            >>> (arr id &&& (whenE (isStatic . fst))))
+          (\(p,g) -> processPlayerMovement' p g)
+
+       isStatic p = case p of
+                     (Just (_, Nothing)) -> True
+                     _                   -> False
+
+       whenE pred = ((arr pred >>> edge) &&& arr id) >>> arr (uncurry tag)
          
        movePlayerForward :: SF ((NodeId, TransitionInfo), Graph) (Player, Graph)
-       movePlayerForward = flip iterFrom undefined $
-                             \_ ((orig, (TransitionInfo progress dest)), graph) dt _ ->
-                                let dp = dt * (graphSpeedF graph orig dest progress)
-                                    p' = progress + dp
-                                in if p' >= 1
-                                     then -- Finish moving
-                                          (Just (dest, Nothing), graph)
-                                     else -- Continue moving
-                                          (Just (orig, (Just (TransitionInfo p' dest))), 
-                                           graph)
+       movePlayerForward = proc ((orig, (TransitionInfo progress dest)), graph) -> do
+             p' <- maxIntegral 1 -< (graphSpeedF graph orig dest progress)
+             returnA -< if p' >= 1
+                           then -- Finish moving
+                            (Just (dest, Nothing), graph)
+                           else -- Continue moving
+                            (Just (orig, (Just (TransitionInfo p' dest))), graph)
+
+       maxIntegral x = switch (integral &&& arr (gt x)) (\_ -> constant x)
+            where gt x y = if y > x then Event () else noEvent
 
        -- Parallely apply all object functions
        processObjMovement :: SF ObjectInput (IL ObjectOutput)
@@ -383,13 +403,28 @@ initialObjects level = listToIL $
     , objSideTop
     , objSideLeft
     , objSideBottom
-    , objPaddle   
-    , objBall
+    -- , objPaddle   
+    -- , objBall
     ]
-    ++ map (\p -> objBlockAt p (blockWidth, blockHeight)) (blockPoss $ levels!!level)
+    -- ++ map (\p -> objBlockAt p (blockWidth, blockHeight)) (blockPoss $ levels!!level)
 
 initialGraph :: Int -> Graph
-initialGraph _ = Graph [] []
+initialGraph _ = Graph [ Node 0 (20, 20)   False
+                       , Node 1 (100, 100) False
+                       , Node 2 (20, 300)  False
+                       , Node 3 (300, 20)  True
+                       ]
+                       [ Arrow 0 1 (const 1) (positionInterpolate (20, 20)   (100, 100)) [0.1,0.2..1]
+                       , Arrow 1 2 (const 1) (positionInterpolate (100, 100) (20,  300)) [0.1,0.2..1]
+                       , Arrow 1 3 (const 1) (positionInterpolate (100, 100) (300, 20))  [0.1,0.2..1]
+                       ]
+
+positionInterpolate p1@(x1,y1) (x2,y2) prog =
+  (p1 ^+^ dpos, (diffX, diffY))
+ where diffX = (x2 - x1)
+       diffY = (y2 - y1)
+       dpos  = (prog * diffX, prog * diffY)
+       
 
 -- *** Ball
 

@@ -90,7 +90,7 @@ initGraphs = do
   SDL.enableUnicode True
 
   -- Hide mouse
-  SDL.showCursor False
+  SDL.showCursor True
 
 
 render :: ResourceMgr -> GameState -> IO()
@@ -98,6 +98,7 @@ render resourceManager shownState = do
   resources <- loadNewResources resourceManager shownState
   audio   resources shownState
   display resources shownState
+  print (player shownState)
 
 audio :: Resources -> GameState -> IO()
 audio resources shownState = do
@@ -143,12 +144,13 @@ display resources shownState = do
              32 0xFF000000 0x00FF0000 0x0000FF00 0x000000FF
   paintGeneralMsg surface resources (gameStatus (gameInfo shownState))
   mapM_ (paintObject resources surface) $ gameObjects shownState
-  let rect = SDL.Rect (round gameLeft) (round gameTop) (round gameWidth) (round gameHeight)
-  SDL.blitSurface surface Nothing screen $ Just rect
 
   -- voldemort
-  paintGraph screen $ graph shownState
-  paintPlayer screen (graph shownState) $ player shownState
+  paintGraph surface $ graph shownState
+  paintPlayer surface (graph shownState) $ player shownState
+
+  let rect = SDL.Rect (round gameLeft) (round gameTop) (round gameWidth) (round gameHeight)
+  SDL.blitSurface surface Nothing screen $ Just rect
 
   -- Double buffering
   SDL.flip screen
@@ -324,8 +326,8 @@ paintGraph :: Surface
            -> Graph
            -> IO ()
 paintGraph screen n =
-    mapM_ (paintNode screen) (nodes n) >>
-    mapM_ (paintArrow screen) (arrows n)
+    mapM_ (paintArrow screen) (arrows n) >>
+    mapM_ (paintNode screen) (nodes n)
 
 paintPlayer :: Surface
             -> Graph

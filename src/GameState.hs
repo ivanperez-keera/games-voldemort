@@ -12,7 +12,7 @@ module GameState where
 
 import Control.Applicative
 import Data.List
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust)
 import Objects
 import Physics.TwoDimensions.Dimensions
 import FRP.Yampa.VectorSpace
@@ -58,6 +58,7 @@ data TransitionInfo = TransitionInfo
   { relativePos  :: RelativePos
   , transitionId :: NodeId -- This assumes max one link between any two nodes
   }
+ deriving Show
 
 data Graph = Graph
   { nodes  :: [Node]
@@ -80,9 +81,15 @@ data Arrow = Arrow
   , arrowHeads :: [RelativePos]
   }
 
+connectedNodes :: Graph -> NodeId -> NodeId -> Bool
+connectedNodes graph orig dest = isJust (findArrowByNodes orig dest (arrows graph))
+
 graphSpeedF :: Graph -> NodeId -> NodeId -> RelativePos -> RelativeSpeed
 graphSpeedF graph orig dest =
   speedF $ fromJust $ findArrowByNodes orig dest (arrows graph)
+
+findNode :: Graph -> NodeId -> Maybe Node
+findNode graph nid = find (\x -> nodeId x == nid) $ nodes graph
 
 findArrowByNodes :: NodeId -> NodeId -> [Arrow] -> Maybe Arrow
 findArrowByNodes _    _    [] = Nothing
