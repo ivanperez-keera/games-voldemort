@@ -28,10 +28,10 @@ import FRP.Yampa (Time)
 -- therefore convenient to group them in subtrees, even if there's no
 -- substantial difference betweem them.
 data GameState = GameState
-  { gameObjects :: Objects
-  , gameInfo    :: GameInfo
-  , player      :: Player
-  , graph       :: Graph
+  { gameObjects :: !Objects
+  , gameInfo    :: !GameInfo
+  , player      :: !Player
+  , graph       :: !Graph
   }
 
 playerPosition :: Graph -> Player -> Maybe Pos2D
