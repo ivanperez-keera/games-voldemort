@@ -295,11 +295,11 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
    -- Process physical movement and detect new collisions
    (proc (c,(o,cs,pt)) -> do
       tLeft    <- (timePerLevel -) ^<< time -< ()
-      g        <- generateGraph -< ()
-      (p',g')  <- processPlayerMovement     -< (c,g)
-      oi       <- adaptInput                -< (c, (o, cs, pt))
-      ol       <- processObjMovement        -< oi
-      elems    <- arr elemsIL               -< ol
+      g        <- graphSeq ^<< generateGraph -< ()
+      (p',g')  <- processPlayerMovement         -< (c,g)
+      oi       <- adaptInput                    -< (c, (o, cs, pt))
+      ol       <- ilSeq ^<< processObjMovement -< oi
+      elems    <- arr elemsIL                   -< ol
 
       let ol'  = if isMoving p' then maybe ol (\po -> insertIL_ po ol) (playerObject p' g') else ol
       cs'      <- detectObjectCollisions -< ol'

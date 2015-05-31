@@ -181,3 +181,10 @@ data GameStatus = GamePlaying
  deriving Eq
 
 quickTrace x = trace (show x) x 
+
+mapSeq :: [a] -> [a]
+mapSeq []     = []
+mapSeq (a:as) = a `seq` mapSeq as
+
+graphSeq :: Graph -> Graph
+graphSeq x = mapSeq (nodes x) `seq`  mapSeq (arrows x) `seq` x

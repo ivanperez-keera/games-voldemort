@@ -32,7 +32,8 @@ module Data.IdentityList (
     findIL,       -- :: ((ILKey, a) -> Bool) -> IL a -> Maybe a
     mapFindIL,    -- :: ((ILKey, a) -> Maybe b) -> IL a -> Maybe b
     findAllIL,    -- :: ((ILKey, a) -> Bool) -> IL a -> [a]
-    mapFindAllIL  -- :: ((ILKey, a) -> Maybe b) -> IL a -> [b]
+    mapFindAllIL, -- :: ((ILKey, a) -> Maybe b) -> IL a -> [b]
+    ilSeq,
 ) where
 
 import Data.List (find)
@@ -175,3 +176,10 @@ findAllIL p (IL {ilAssocs = kas}) = [ a | ka@(_, a) <- kas, p ka ]
 
 mapFindAllIL:: ((ILKey, a) -> Maybe b) -> IL a -> [b]
 mapFindAllIL p (IL {ilAssocs = kas}) = [ b | ka <- kas, Just b <- [p ka] ]
+
+ilSeq :: IL a -> IL a
+ilSeq il = mapSeq (ilAssocs il) `seq` il
+
+mapSeq :: [a] -> [a]
+mapSeq []     = []
+mapSeq (a:as) = a `seq` mapSeq as
