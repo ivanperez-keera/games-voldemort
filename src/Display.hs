@@ -12,6 +12,7 @@ import Graphics.UI.SDL       as SDL
 import qualified Graphics.UI.SDL.Primitives as SDLP
 import qualified Graphics.UI.SDL.TTF as TTF
 import Graphics.UI.SDL.Image as Image
+import Text.Printf
 
 import Audio
 import Constants
@@ -19,6 +20,7 @@ import GameState
 import Objects
 import Resources hiding (audio)
 import Levels
+
 
 -- | Ad-hoc resource loading
 -- This function is ad-hoc in two senses: first, because it
@@ -194,6 +196,10 @@ paintGeneralHUD screen resources over = void $ do
       w2 = SDL.surfaceGetWidth  message3
       h2 = SDL.surfaceGetHeight message3
   SDL.blitSurface message3 Nothing screen $ Just (SDL.Rect (rightMargin - 10 - w2) 10 w2 h2)
+  message4 <- TTF.renderTextSolid font ("Time left: " ++ printf "%.2f" (gameTime over)) (SDL.Color 128 128 128)
+  let w4 = (SDL.surfaceGetWidth  message4 `div` 50) * 50
+      h4 = SDL.surfaceGetHeight message4
+  SDL.blitSurface message4 Nothing screen $ Just (SDL.Rect (rightMargin - 40 - w4) (10 + h2 + 5) w4 h4)
 
 paintObject resources screen object = do
   red <- mapRGB format 0xFF 0 0

@@ -26,4 +26,4 @@ main = do
                )
                (\_ e -> render res' e >> return False)
                wholeGame
- 
+
