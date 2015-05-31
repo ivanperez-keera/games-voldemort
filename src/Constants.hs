@@ -1,5 +1,7 @@
 module Constants where
 
+import Data.Int
+import Data.Word
 import FRP.Yampa
 import Physics.TwoDimensions.Dimensions
 
@@ -60,3 +62,15 @@ maxVNorm = 500
 -- 
 -- wonDelay :: Time
 -- wonDelay = 3
+--
+
+playerColor :: Word32
+playerColor = 0x77FF00FF
+playerSize :: Int16
+playerSize = 15
+arrowColor :: Word32
+arrowColor = 0xFF0088FF
+nodeColor :: Bool -> Word32
+nodeColor final = if final then 0xFF9900FF else 0x0099FFFF
+nodeSize :: Int16
+nodeSize = 20
