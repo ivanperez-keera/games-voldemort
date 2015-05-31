@@ -468,7 +468,7 @@ initialGraph _ = Graph [ Node 0 (20, 20)   False
                        [ Arrow 0 1 (const 1)    (positionInterpolate (20, 20)   (100, 100)) (arrowArray (20, 20)   (100, 100))
                        , Arrow 1 2 (const 1)    (attractedInterpolate (const 1) (150, 250) (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
                        , Arrow 1 3 ((0.1 +).id) (attractedInterpolate ((0.1 +).id) (200, 140) (100, 100) (300, 20))  (arrowArray (100, 100) (300, 20))
-                       , Arrow 3 4 bellShape    (positionInterpolate (300, 20)  (500, 300)) (arrowArray (300, 20)  (500, 300))
+                       , Arrow 3 4 bellShape    (bezierInterpolate3 bellShape (300, 20) (650, 90) (50, 120)   (500, 300)) (arrowArray (300, 20)  (500, 300))
                        ]
 
 
@@ -507,6 +507,25 @@ attractedMovement (x0,y0) (x1,y1) (x2,y2) s t =
               d1 = (x0-x1, y0-y1)
               d2 = (x2-x0, y2-y0)
               (s1,s2) = (2*(1-t)*fst d1 + 2*t*fst d2, 2*(1-t)*snd d1 + 2*t*snd d2)
+
+bezierInterpolate3 sf p0 p1 p2 p3 t = bezierMovement3 p0 p1 p2 p3 (sf t) t
+
+bezierMovement3 :: Pos2D -- Attractor pos
+                -> Pos2D -- First node pos
+                -> Pos2D -- First node pos
+                -> Pos2D -- Second node pos
+                -> Double -- speed at certain point in rel coordinates
+                -> Double -- point in rel coordinates
+                -> (Pos2D,Pos2D) -- Speed and Direction in 2D
+bezierMovement3 p0 p1 p2 p3 s t =
+    ( (((1-t)^3) *^ p0 ^+^ (3*(1-t)^2*t) *^ p1 ^+^ (3*(1-t)*t^2) *^ p2 ^+^ (t^3)*^ p3)
+    , (10*s/ sqrt (dot dir dir)) *^ dir
+    )
+        where dir = ((3*(1-t)^2) *^ d1 ^+^ (6*(1-t)*t) *^ d2 ^+^ (3*t^2) *^ d3)
+              d1 = p1 ^-^ p0 :: Pos2D
+              d2 = p2 ^-^ p1 :: Pos2D
+              d3 = p3 ^-^ p2 :: Pos2D
+
 
 -- *** Enemy
 objEnemies :: [ObjectSF]
