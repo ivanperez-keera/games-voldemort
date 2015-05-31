@@ -266,6 +266,8 @@ defaultRunningState = RunningState [] [] 0
 
 type InitialState = (Player, ObjectSFs, Graph)
 
+timePerLevel = 20
+
 -- ** Game with partial state information
 
 -- | Given an initial list of objects, it runs the game, presenting the output
@@ -288,17 +290,20 @@ gamePlay' :: InitialState -> SF Controller (Player, Graph, ObjectOutputs, Event 
 gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
    -- Process physical movement and detect new collisions
    (proc (c,(o,cs,pt)) -> do
-      (p',g') <- processPlayerMovement  -< c
-      oi      <- adaptInput             -< (c, (o, cs, pt))
-      ol      <- processObjMovement     -< oi
-      elems   <- arr elemsIL            -< ol
-      let ol' = if isMoving p' then maybe ol (\po -> insertIL_ po ol) (playerObject p' g') else ol
-      cs'     <- detectObjectCollisions -< ol'
-      pts'    <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
+      timeLeft <- (timePerLevel -) ^<< time -< ()
+      (p',g')  <- processPlayerMovement     -< c
+      oi       <- adaptInput                -< (c, (o, cs, pt))
+      ol       <- processObjMovement        -< oi
+      elems    <- arr elemsIL               -< ol
+
+      let ol'  = if isMoving p' then maybe ol (\po -> insertIL_ po ol) (playerObject p' g') else ol
+      cs'      <- detectObjectCollisions -< ol'
+
+      pts'     <- arr (\(cs,o) -> o + countPoints cs) -< (cs', pt)
       let playerHit =
             isMoving p' &&
              (not $ null $ collisionsBetween (=="player") ("enemy" `isPrefixOf`) cs')
-      dead    <- edge                   -< (stateLocked p' g' || playerHit)
+      dead    <- edge                   -< (stateLocked p' g' || playerHit || timeLeft < 0)
       returnA -< ((p', g', elems, dead, pts'), (elems, cs', pts'))
    )
  where
