@@ -466,8 +466,8 @@ initialGraph _ = Graph [ Node 0 (20, 20)   False
                        , Node 4 (500, 300) True
                        ]
                        [ Arrow 0 1 (const 1)    (positionInterpolate (20, 20)   (100, 100)) (arrowArray (20, 20)   (100, 100))
-                       , Arrow 1 2 (const 1)    (positionInterpolate (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
-                       , Arrow 1 3 ((0.1 +).id) (positionInterpolate (100, 100) (300, 20))  (arrowArray (100, 100) (300, 20))
+                       , Arrow 1 2 (const 1)    (attractedInterpolate (const 1) (150, 250) (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
+                       , Arrow 1 3 ((0.1 +).id) (attractedInterpolate ((0.1 +).id) (200, 140) (100, 100) (300, 20))  (arrowArray (100, 100) (300, 20))
                        , Arrow 3 4 bellShape    (positionInterpolate (300, 20)  (500, 300)) (arrowArray (300, 20)  (500, 300))
                        ]
 
@@ -479,11 +479,34 @@ arrowArray (x0,y0) (x1,y1) = map ((/ fromIntegral (m+1)) . fromIntegral) [0..m]
     where d = sqrt $ (x1-x0)*(x1-x0) + (y1-y0)*(y1-y0)
           m = round d `div` 20
 
+--arrowArray2 :: (RelativePos -> RelativePos) -> Pos2D -> Pos2D -> [RelativePos]
+--arrowArray2 sf (x0,y0) (x1,y1) = map (( / last l2)) l2
+--    where d = sqrt $ (x1-x0)*(x1-x0) + (y1-y0)*(y1-y0)
+--          m = fromIntegral $ round d `div` 20
+--          l2 = scanl1 (+) $ map sf [0..m]
+
 positionInterpolate p1@(x1,y1) (x2,y2) prog =
   (p1 ^+^ dpos, normalize (diffX, diffY))
  where diffX = (x2 - x1)
        diffY = (y2 - y1)
        dpos  = (prog * diffX, prog * diffY)
+
+
+attractedInterpolate sf p0 p1 p2 t = attractedMovement p0 p1 p2 (sf t) t
+
+--attractedMovement :: (Int16,Int16) -- Attractor pos
+--                  -> (Int16,Int16) -- First node pos
+--                  -> (Int16,Int16) -- Second node pos
+--                  -> Float -- speed at certain point in rel coordinates
+--                  -> Float -- point in rel coordinates
+--                  -> ((Int16,Int16),(Float,Float)) -- Speed and Direction in 2D
+attractedMovement (x0,y0) (x1,y1) (x2,y2) s t =
+    (( (x1+) $ (2*t-t*t)*fst d1 + t*t*fst d2, (y1 +) $ (2*t-t*t)*snd d1 + t*t*snd d2)
+    ,(s*s1/d, s*s2/d))
+        where d = sqrt $ s1*s1 + s2*s2
+              d1 = (x0-x1, y0-y1)
+              d2 = (x2-x0, y2-y0)
+              (s1,s2) = (2*(1-t)*fst d1 + 2*t*fst d2, 2*(1-t)*snd d1 + 2*t*snd d2)
 
 -- *** Enemy
 objEnemies :: [ObjectSF]
