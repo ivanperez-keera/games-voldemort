@@ -100,7 +100,6 @@ render resourceManager shownState = do
   resources <- loadNewResources resourceManager shownState
   audio   resources shownState
   display resources shownState
-  print (player shownState)
 
 audio :: Resources -> GameState -> IO()
 audio resources shownState = do
