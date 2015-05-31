@@ -270,7 +270,7 @@ defaultRunningState = RunningState [] [] 0
 
 type InitialState = (Player, ObjectSFs, Graph)
 
-timePerLevel = 20
+timePerLevel = 30
 
 -- ** Game with partial state information
 
@@ -452,14 +452,11 @@ initialObjects level = listToIL $
     , objSideTop
     , objSideLeft
     , objSideBottom
-    -- , objPaddle
-    -- , objBall
     ]
-    ++ objEnemies
-    -- ++ map (\p -> objBlockAt p (blockWidth, blockHeight)) (blockPoss $ levels!!level)
+    ++ objEnemies level
 
 initialGraph :: Int -> Graph
-initialGraph _ = Graph [ Node 0 (20, 20)   False
+initialGraph 0 = Graph [ Node 0 (20, 20)   False
                        , Node 1 (100, 100) False
                        , Node 2 (20, 300)  False
                        , Node 3 (300, 20)  False
@@ -469,6 +466,29 @@ initialGraph _ = Graph [ Node 0 (20, 20)   False
                        , Arrow 1 2 (const 1)    (attractedInterpolate (const 1) (150, 250) (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
                        , Arrow 1 3 ((0.1 +).id) (attractedInterpolate ((0.1 +).id) (200, 140) (100, 100) (300, 20))  (arrowArray (100, 100) (300, 20))
                        , Arrow 3 4 bellShape    (positionInterpolate (300, 20)  (500, 300)) (arrowArray (300, 20)  (500, 300))
+                       ]
+initialGraph _ = Graph [ Node 0 (320, 200) False
+                       , Node 1 (560, 040) False
+                       , Node 2 (500, 500) False
+                       , Node 3 (360, 400) False
+                       , Node 4 (220, 480) False
+                       , Node 5 (160, 200) False
+                       , Node 6 (300, 100) True
+                       ]
+                       [ Arrow 0 1 (const 1) (positionInterpolate (320, 200) (560, 040))
+                                             (arrowArray          (320, 200) (560, 040))
+                       , Arrow 1 2 (const 1) (attractedInterpolate (const 1) (370, 170)
+                                                                  (560, 040) (500, 500))
+                                             (arrowArray          (560, 040) (500, 500))
+                       , Arrow 2 3 ((0.1 +).(*3).id) (attractedInterpolate ((0.1 +).id) (200, 140)
+                                                                  (500, 500) (360, 400))
+                                                (arrowArray       (500, 500) (360, 400))
+                       , Arrow 3 4 bellShape (positionInterpolate (360, 400) (220, 480))
+                                             (arrowArray          (360, 400) (220, 480))
+                       , Arrow 4 5 bellShape (positionInterpolate (220, 480) (160, 200))
+                                             (arrowArray          (220, 480) (160, 200))
+                       , Arrow 5 6 bellShape (positionInterpolate (160, 200) (300, 100))
+                                             (arrowArray          (160, 200) (300, 100))
                        ]
 
 
@@ -509,12 +529,20 @@ attractedMovement (x0,y0) (x1,y1) (x2,y2) s t =
               (s1,s2) = (2*(1-t)*fst d1 + 2*t*fst d2, 2*(1-t)*snd d1 + 2*t*snd d2)
 
 -- *** Enemy
-objEnemies :: [ObjectSF]
-objEnemies =
+objEnemies :: Int -> [ObjectSF]
+objEnemies 0 =
   [ bouncingBall "enemy1" (300, 300) (360, -350)
   , bouncingBall "enemy2" (500, 300) (-300, -250)
   , bouncingBall "enemy3" (200, 100) (-300, -250)
   , bouncingBall "enemy4" (100, 200) (-200, -150)
+  ]
+objEnemies _ =
+  [ bouncingBall "enemy1" (300, 300) (360, -350)
+  , bouncingBall "enemy2" (500, 300) (-300, -250)
+  , bouncingBall "enemy3" (200, 100) (-300, -250)
+  , bouncingBall "enemy4" (100, 200) (-200, -150)
+  , bouncingBall "enemy5" (200, 200) (-300, -150)
+  , bouncingBall "enemy6" (400, 400) (200, 200)
   ]
 
 -- *** Ball
