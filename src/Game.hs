@@ -327,7 +327,7 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                                                            , objectHit            = False
                                                            , canCauseCollisions   = True
                                                            , collisionEnergy      = 0
-                                                           , displacedOnCollision = False -- Theoretically, setting cE == 0 should suffice
+                                                           -- , displacedOnCollision = False -- Theoretically, setting cE == 0 should suffice
                                                            })
                                                     NoEvent
 
@@ -656,7 +656,7 @@ freeBall name p0 v0 = proc (ObjectInput ci cs os) -> do
                    , objectHit            = isHit
                    , canCauseCollisions   = True
                    , collisionEnergy      = 1
-                   , displacedOnCollision = True
+                   -- , displacedOnCollision = True
                    }
 
   returnA -< livingObject obj
@@ -703,7 +703,7 @@ objWall name side pos = proc (ObjectInput ci cs os) -> do
                         , objectHit            = isHit
                         , canCauseCollisions   = False
                         , collisionEnergy      = 0
-                        , displacedOnCollision = False
+                        -- , displacedOnCollision = False
                         })
                 noEvent
 
