@@ -181,5 +181,7 @@ ilSeq :: IL a -> IL a
 ilSeq il = mapSeq (ilAssocs il) `seq` il
 
 mapSeq :: [a] -> [a]
-mapSeq []     = []
-mapSeq (a:as) = a `seq` mapSeq as
+mapSeq x = x `seq` mapSeq' x
+mapSeq' []     = []
+mapSeq' (a:as) = a `seq` mapSeq as
+
