@@ -32,7 +32,6 @@ data GameState = GameState
   , gameInfo    :: GameInfo
   , player      :: Player
   , graph       :: Graph
-  , timeLeft    :: Time
   }
 
 playerPosition :: Graph -> Player -> Maybe Pos2D
@@ -156,6 +155,7 @@ data GameInfo = GameInfo
   , gameLives  :: Int
   , gameLevel  :: Int
   , gamePoints :: Int
+  , gameTime   :: Time
   }
 
 -- | Initial (default) game info (no points, no lives, no level).
@@ -165,6 +165,7 @@ neutralGameInfo = GameInfo
   , gameLevel  = 0
   , gameLives  = 0
   , gamePoints = 0
+  , gameTime   = 0
   }
 
 -- | Possible actual game statuses. The game is always in one of these.

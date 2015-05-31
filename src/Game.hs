@@ -249,10 +249,9 @@ composeGameState' lives level pts = proc (player, graph, oos,dead,points,tLeft) 
   -- Compose game state
   objects <- extractObjects -< oos
   let general = GameState objects
-                          (GameInfo GamePlaying lives level (pts+points))
+                          (GameInfo GamePlaying lives level (pts+points) tLeft)
                           player
                           graph
-                          tLeft
 
   -- Detect death
   let lastGeneral = dead `tag` general
