@@ -83,7 +83,7 @@ initGraphs :: IO ()
 initGraphs = do
   -- Create window
   screen <- SDL.setVideoMode (round width) (round height) 32 [SWSurface]
-  SDL.setCaption "Test" ""
+  SDL.setCaption "Voldemort" ""
 
   -- Important if we want the keyboard to work right (I don't know
   -- how to make it work otherwise)
@@ -172,7 +172,7 @@ paintGeneralMsg screen resources GameFinished    = paintGeneralMsg' screen resou
 
 paintGeneralMsg' screen resources msg = void $ do
   let font = resFont resources
-  message <- TTF.renderTextSolid (unFont font) msg (SDL.Color 128 128 128)
+  message <- TTF.renderTextSolid (unFont font) msg (SDL.Color 172 172 172)
   let x = (SDL.surfaceGetWidth  screen - w) `div` 2
       y = (SDL.surfaceGetHeight screen - h) `div` 2
       w = SDL.surfaceGetWidth  message
@@ -181,11 +181,11 @@ paintGeneralMsg' screen resources msg = void $ do
 
 paintGeneralHUD screen resources over = void $ do
   let font = unFont $ resFont resources
-  message1 <- TTF.renderTextSolid font ("Level: " ++ show (gameLevel over)) (SDL.Color 128 128 128)
+  message1 <- TTF.renderTextSolid font ("Level: " ++ show (gameLevel over)) (SDL.Color 172 172 172)
   let w1 = SDL.surfaceGetWidth  message1
       h1 = SDL.surfaceGetHeight message1
   SDL.blitSurface message1 Nothing screen $ Just (SDL.Rect 10 10 w1 h1)
-  message2 <- TTF.renderTextSolid font ("Points: " ++ show (gamePoints over)) (SDL.Color 128 128 128)
+  message2 <- TTF.renderTextSolid font ("Points: " ++ show (gamePoints over)) (SDL.Color 172 172 172)
   let w2 = SDL.surfaceGetWidth  message2
       h2 = SDL.surfaceGetHeight message2
   SDL.blitSurface message2 Nothing screen $ Just (SDL.Rect 10 (10 + h2 + 5) w2 h2)
@@ -295,7 +295,6 @@ updateAllResources res (GameLoading n) = do
   return (res { bgImage = newBg, bgMusic = newMusic })
 
 
-
 paintArrow :: Surface
            -> Arrow
            -> IO ()
@@ -303,7 +302,7 @@ paintArrow screen a = do
     Prelude.flip mapM_ ds $ \(((px,py), (dx,dy)), s) ->
         let a = atan2 dy dx
             d = (10 *) . sqrt $ dx*dx + dy*dy
-            col = 0xFF0088FF
+            col = arrowColor
         in SDLP.filledTrigon screen
             (round $ px +  s*d * cos a) (round $ py + s*d * sin a)
             (round $ px + 10 * cos (a+pi/1.8)) (round $ py + 10 * sin (a+pi/1.8))
@@ -319,8 +318,8 @@ paintNode screen n =
     void $ SDLP.filledCircle screen
         (round . fst $ nodePos n)
         (round . snd $ nodePos n)
-        20
-        (if nodeFinal n then SDL.Pixel 0xFF9900FF else SDL.Pixel 0x0099FFFF)
+        nodeSize
+        (SDL.Pixel (nodeColor (nodeFinal n)))
 
 paintGraph :: Surface
            -> Graph
@@ -338,12 +337,12 @@ paintPlayer screen g (Just (nid, Nothing)) = Prelude.flip (maybe (return ())) mn
     void $ SDLP.filledCircle screen
         (round . fst $ nodePos n)
         (round . snd $ nodePos n)
-        15
-        (SDL.Pixel 0x77FF00FF)
+        playerSize
+        (SDL.Pixel playerColor)
     where mn = find ((nid ==). nodeId) $ nodes g
 paintPlayer screen g (Just (nid, Just tinfo)) = Prelude.flip (maybe (return ())) ma $ \a ->
     void $ let ((px,py), _) = coordsF a $ relativePos tinfo
            in SDLP.filledCircle screen
-            (round px) (round py) 15
-            (SDL.Pixel 0x77FF00FF)
+            (round px) (round py) playerSize
+            (SDL.Pixel playerColor)
     where ma = find (\a -> nid == arrowNode1 a && transitionId tinfo == arrowNode2 a) $ arrows g
