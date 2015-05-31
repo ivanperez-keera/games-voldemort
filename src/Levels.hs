@@ -29,7 +29,7 @@ data LevelSpec = LevelSpec
 levels :: [LevelSpec]
 levels = [ -- Level 0
            LevelSpec { blockPoss  = blockPosS 0
-                     , levelBg    = Resource "data/level1.png"
+                     , levelBg    = Resource "data/level2.png"
                      , levelMusic = Resource "data/level0.mp3"
                      }
          ,
@@ -41,7 +41,7 @@ levels = [ -- Level 0
          ,
            -- Level 2
            LevelSpec { blockPoss  = blockPosS 2
-                     , levelBg    = Resource "data/level2.png"
+                     , levelBg    = Resource "data/level0.png"
                      , levelMusic = Resource "data/level2.mp3"
                      }
          ]

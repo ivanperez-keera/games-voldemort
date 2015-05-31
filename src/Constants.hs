@@ -46,7 +46,7 @@ collisionErrorMargin :: Double
 collisionErrorMargin = 100
 
 stdLives :: Int
-stdLives = 3
+stdLives = 9
 
 -- Energy transmission between objects in collisions
 velTrans :: Double
@@ -69,7 +69,7 @@ playerColor = 0x77FF00FF
 playerSize :: Int16
 playerSize = 15
 arrowColor :: Word32
-arrowColor = 0xFF0088FF
+arrowColor = 0xFF44AAAA
 nodeColor :: Bool -> Word32
 nodeColor final = if final then 0xFF9900FF else 0x0099FFFF
 nodeSize :: Int16
