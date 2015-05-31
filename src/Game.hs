@@ -374,8 +374,6 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                hasBall     = any ((=="ball").fst)
                countBlocks = length . filter ((isPrefixOf "block").fst)
 
-type GraphInput = ()
-
 -- * Game objects
 --
 -- | Objects initially present: the walls, the ball, the paddle and the blocks.
