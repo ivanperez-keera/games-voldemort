@@ -150,6 +150,7 @@ levelLoading lvs lvl pts = arr $ const $
                                          , gameLevel  = lvl
                                          , gameLives  = lvs
                                          , gamePoints = pts
+                                         , gameTime   = 0
                                          }
                    }
 
