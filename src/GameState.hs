@@ -18,6 +18,7 @@ import qualified Data.IntSet as S
 import Objects
 import Physics.TwoDimensions.Dimensions
 import FRP.Yampa.VectorSpace
+import FRP.Yampa (Time)
 
 -- | The running state is given by a bunch of 'Objects' and the current general
 -- 'GameInfo'. The latter contains info regarding the current level, the number
@@ -31,6 +32,7 @@ data GameState = GameState
   , gameInfo    :: GameInfo
   , player      :: Player
   , graph       :: Graph
+  , timeLeft    :: Time
   }
 
 playerPosition :: Graph -> Player -> Maybe Pos2D

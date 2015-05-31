@@ -221,7 +221,7 @@ gamePlay'' st@(p,sf,g) = dSwitch
   (gamePlay' st >>> (arr id &&& playerIsDead))
   (\(p',g',o,pt) -> gamePlay'' (Just (0, Nothing),sf,g'))
  where
-   playerIsDead = arr $ \(p,g,o,d,pt) -> d `tag` (p,g,o,pt)
+   playerIsDead = arr $ \(p,g,o,d,pt,_) -> d `tag` (p,g,o,pt)
 
 -- | Based on the internal gameplay info, compose the main game state and
 -- detect when a live is lost. When that happens, restart this SF
@@ -235,7 +235,7 @@ gamePlay'' st@(p,sf,g) = dSwitch
 -- will fall in an infinite loop.  Therefore, this dswitch only switches for
 -- non-start events.
 composeGameState :: Int -> Int -> Int
-                 -> SF (Player, Graph, ObjectOutputs, Event (), Int) GameState
+                 -> SF (Player, Graph, ObjectOutputs, Event (), Int, Time) GameState
 composeGameState lives level pts = futureDSwitch
   (composeGameState' lives level pts)
   (\_ -> composeGameState (lives-1) level pts)
@@ -244,14 +244,15 @@ composeGameState lives level pts = futureDSwitch
 -- detect when a live is lost. When that happens, keep the last known game
 -- state.
 composeGameState' :: Int -> Int -> Int
-                  -> SF (Player, Graph, ObjectOutputs, Event (), Int) (GameState, Event GameState)
-composeGameState' lives level pts = proc (player, graph, oos,dead,points) -> do
+                  -> SF (Player, Graph, ObjectOutputs, Event (), Int, Time) (GameState, Event GameState)
+composeGameState' lives level pts = proc (player, graph, oos,dead,points,tLeft) -> do
   -- Compose game state
   objects <- extractObjects -< oos
   let general = GameState objects
                           (GameInfo GamePlaying lives level (pts+points))
                           player
                           graph
+                          tLeft
 
   -- Detect death
   let lastGeneral = dead `tag` general
@@ -289,11 +290,11 @@ timePerLevel = 20
 --
 --    - The last known points (added to the new ones in every loop iteration).
 --
-gamePlay' :: InitialState -> SF Controller (Player, Graph, ObjectOutputs, Event (), Int)
+gamePlay' :: InitialState -> SF Controller (Player, Graph, ObjectOutputs, Event (), Int, Time)
 gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
    -- Process physical movement and detect new collisions
    (proc (c,(o,cs,pt)) -> do
-      timeLeft <- (timePerLevel -) ^<< time -< ()
+      tLeft    <- (timePerLevel -) ^<< time -< ()
       g        <- generateGraph -< ()
       (p',g')  <- processPlayerMovement     -< (c,g)
       oi       <- adaptInput                -< (c, (o, cs, pt))
@@ -307,8 +308,8 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
       let playerHit =
             isMoving p' &&
              (not $ null $ collisionsBetween (=="player") ("enemy" `isPrefixOf`) cs')
-      dead    <- edge                   -< (stateLocked p' g' || playerHit || timeLeft < 0)
-      returnA -< ((p', g', elems, dead, pts'), (elems, cs', pts'))
+      dead    <- edge                   -< (stateLocked p' g' || playerHit || tLeft < 0)
+      returnA -< ((p', g', elems, dead, pts', tLeft), (elems, cs', pts'))
    )
  where
 
