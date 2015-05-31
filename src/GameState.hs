@@ -188,4 +188,12 @@ mapSeq' []     = []
 mapSeq' (a:as) = a `seq` mapSeq as
 
 graphSeq :: Graph -> Graph
-graphSeq x = mapSeq (nodes x) `seq`  mapSeq (arrows x) `seq` x
+graphSeq x = mapSeq (nodes x) `seq` mapSeqWith arrowSeq (arrows x) `seq` x
+
+arrowSeq :: Arrow -> Arrow
+arrowSeq a = a `seq` mapSeq (arrowHeads a) `seq` a
+
+mapSeqWith :: (a -> a) -> [a] -> [a]
+mapSeqWith f x = x `seq` mapSeqWith' f x
+mapSeqWith' f []     = []
+mapSeqWith' f (a:as) = f a `seq` mapSeqWith f as

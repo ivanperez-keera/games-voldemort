@@ -62,10 +62,11 @@ import Constants
 
 -- | Controller info at any given point.
 data Controller = Controller
-  { controllerPos   :: (Double, Double)
-  , controllerClick :: Bool
-  , controllerPause :: Bool
-  , controllerExit  :: Bool
+  { controllerPos        :: (Double, Double)
+  , controllerClick      :: Bool
+  , controllerPause      :: Bool
+  , controllerExit       :: Bool
+  , controllerFullscreen :: Bool
   }
 
 -- | Controller info at any given point, plus a pointer
@@ -105,7 +106,7 @@ initializeInputDevices = do
 
   nr <- newIORef defaultInfo
   return $ ControllerRef (nr, dev')
- where defaultInfo = Controller (0,0) False False False
+ where defaultInfo = Controller (0,0) False False False False
 
 -- | Sense from the controller, providing its current
 -- state. This should return a new Controller state
@@ -226,7 +227,8 @@ handleEvent c e =
     MouseMotion x y _ _                      -> c { controllerPos   = (fromIntegral x, fromIntegral y)}
     MouseButtonDown _ _ ButtonLeft           -> c { controllerClick = True }
     MouseButtonUp   _ _ ButtonLeft           -> c { controllerClick = False} 
-    KeyUp (Keysym { symKey = SDLK_p })       -> c { controllerPause = not (controllerPause c) }
+    KeyUp (Keysym { symKey = SDLK_p })       -> c { controllerPause      = not (controllerPause c) }
+    KeyUp (Keysym { symKey = SDLK_f })       -> c { controllerFullscreen = not (controllerFullscreen c) }
     KeyDown (Keysym { symKey = SDLK_SPACE }) -> c { controllerClick = True  }
     KeyUp (Keysym { symKey = SDLK_SPACE })   -> c { controllerClick = False }
     KeyDown (Keysym { symKey = SDLK_ESCAPE}) -> c { controllerExit  = True  }
