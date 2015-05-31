@@ -462,16 +462,19 @@ initialGraph :: Int -> Graph
 initialGraph _ = Graph [ Node 0 (20, 20)   False
                        , Node 1 (100, 100) False
                        , Node 2 (20, 300)  False
-                       , Node 3 (300, 20)  True
+                       , Node 3 (300, 20)  False
+                       , Node 4 (500, 300) True
                        ]
-                       [ Arrow 0 1 (const 1) (positionInterpolate (20, 20)   (100, 100)) (arrowArray (20, 20)   (100, 100))
-                       , Arrow 1 2 (const 1) (positionInterpolate (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
-                       , Arrow 1 3 (const 1) (positionInterpolate (100, 100) (300, 20))  (arrowArray (100, 100)   (300, 20))
+                       [ Arrow 0 1 (const 1)    (positionInterpolate (20, 20)   (100, 100)) (arrowArray (20, 20)   (100, 100))
+                       , Arrow 1 2 (const 1)    (positionInterpolate (100, 100) (20,  300)) (arrowArray (100, 100) (20,  300))
+                       , Arrow 1 3 ((0.1 +).id) (positionInterpolate (100, 100) (300, 20))  (arrowArray (100, 100) (300, 20))
+                       , Arrow 3 4 bellShape    (positionInterpolate (300, 20)  (500, 300)) (arrowArray (300, 20)  (500, 300))
                        ]
 
-arrowArray :: Pos2D
-           -> Pos2D
-           -> [RelativePos]
+
+bellShape p = 0.1 + 1.2 * p * (1 - p)
+
+arrowArray :: Pos2D -> Pos2D -> [RelativePos]
 arrowArray (x0,y0) (x1,y1) = map ((/ fromIntegral (m+1)) . fromIntegral) [0..m]
     where d = sqrt $ (x1-x0)*(x1-x0) + (y1-y0)*(y1-y0)
           m = round d `div` 20
