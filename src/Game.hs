@@ -420,7 +420,7 @@ initialGraph _ = Graph [ Node 0 (20, 20)   False
                        ]
 
 positionInterpolate p1@(x1,y1) (x2,y2) prog =
-  (p1 ^+^ dpos, (diffX, diffY))
+  (p1 ^+^ dpos, normalize (diffX, diffY))
  where diffX = (x2 - x1)
        diffY = (y2 - y1)
        dpos  = (prog * diffX, prog * diffY)
