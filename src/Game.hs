@@ -49,6 +49,7 @@ import Data.Extra.Ord
 import Data.Extra.VectorSpace
 import Data.IdentityList
 import FRP.Extra.Yampa
+import FRP.Yampa.Switches (parC)
 import Physics.TwoDimensions.Collisions
 import Physics.TwoDimensions.Dimensions
 
@@ -60,6 +61,8 @@ import Input
 import Levels
 import Objects
 import ObjectSF
+
+import Data.Fixed (mod')
 
 -- * General state transitions
 
@@ -291,7 +294,8 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
    -- Process physical movement and detect new collisions
    (proc (c,(o,cs,pt)) -> do
       timeLeft <- (timePerLevel -) ^<< time -< ()
-      (p',g')  <- processPlayerMovement     -< c
+      g        <- generateGraph -< ()
+      (p',g')  <- processPlayerMovement     -< (c,g)
       oi       <- adaptInput                -< (c, (o, cs, pt))
       ol       <- processObjMovement        -< oi
       elems    <- arr elemsIL               -< ol
@@ -330,34 +334,51 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
        adaptInput :: SF (Controller, (ObjectOutputs, Collisions, Int)) ObjectInput
        adaptInput = arr (\(gi,(os,cs,pts)) -> ObjectInput gi cs (map outputObject os))
 
-       -- Process player movement
-       processPlayerMovement :: SF Controller (Player, Graph)
-       processPlayerMovement = processPlayerMovement' player graph
+       generateGraph :: SF () Graph
+       generateGraph = loopPre graph $ arr snd >>> processGraphAnimation >>> arr dup
 
-       processPlayerMovement' :: Player -> Graph -> SF Controller (Player, Graph)
-       processPlayerMovement' player graph = switch
-         ((loopPre (player, graph) $
-            (proc (c, i@(p, g)) ->
+       processGraphAnimation :: SF Graph Graph
+       processGraphAnimation = proc (g@Graph{arrows = ars}) -> do
+            ars' <- parC processArrowAnimation -< ars
+            returnA -< g{arrows = ars'}
+
+       -- Process each single arrow movement
+       processArrowAnimation :: SF GameState.Arrow GameState.Arrow
+       processArrowAnimation = proc (a@Arrow{speedF=sf, arrowHeads = xs}) -> do
+             ds <- parC forgetfulIntegral -< map sf xs
+             returnA -< a{arrowHeads = map (flip mod' 1) $ zipWith (+) xs ds}
+
+       forgetfulIntegral = iterFrom (\_ v dt _ -> v * dt) 0
+
+       -- Process player movement
+       processPlayerMovement :: SF (Controller, Graph) (Player, Graph)
+       processPlayerMovement = processPlayerMovement' player
+
+       processPlayerMovement' :: Player -> SF (Controller, Graph) (Player, Graph)
+       processPlayerMovement' player = switch
+         ((loopPre player $
+            (proc ((c, g), p) ->
                  case p of
-                       Nothing              -> returnA -< i
+                       Nothing              -> returnA -< (p,g)
                        Just (n, Nothing)    -> -- Check if needs to move forward upon click
                                                returnA -<
                                                    (if controllerClick c
                                                       then
                                                            let adjustedPos = (controllerPos c ^-^ (gameLeft, gameTop))
-                                                           in maybe i (\d -> if connectedNodes g n d
-                                                                                then startMoving g n d
-                                                                                else i
-                                                                      ) $
+                                                           in maybe (p,g)
+                                                                    (\d -> if connectedNodes g n d
+                                                                             then startMoving g n d
+                                                                             else (p,g)
+                                                                    ) $
                                                                -- (\x -> trace (show (x, adjustedPos)) x) $
                                                                  g `nodeAtPos` adjustedPos
-                                                      else i)
+                                                      else (p,g))
                        Just (n, Just tInfo) -> -- Move forward, possibly altering graph
                                                movePlayerForward -< ((n, tInfo), g)
-             ) >>> arr dup)
+             ) >>> arr (id &&& fst))
             -- Pass result along, detect when the player stops moving
             >>> (arr id &&& (whenE (isStatic . fst))))
-          (\(p,g) -> processPlayerMovement' p g)
+          (\(p,_) -> processPlayerMovement' p)
 
        isStatic p = case p of
                      (Just (_, Nothing)) -> True
