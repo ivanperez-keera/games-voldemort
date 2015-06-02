@@ -341,13 +341,15 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
        processGraphAnimation :: SF Graph Graph
        processGraphAnimation = proc (g@Graph{arrows = ars}) -> do
             ars' <- parC processArrowAnimation -< ars
-            returnA -< g{arrows = ars'}
+            let g' = g{arrows = ars'}
+            returnA -< graphSeq g'
 
        -- Process each single arrow movement
        processArrowAnimation :: SF GameState.Arrow GameState.Arrow
        processArrowAnimation = proc (a@Arrow{speedF=sf, arrowHeads = xs}) -> do
              ds <- parC forgetfulIntegral -< map sf xs
-             returnA -< a{arrowHeads = map (flip mod' 1) $ zipWith (+) xs ds}
+             let r = a{arrowHeads = mapSeq $ map (flip mod' 1) $ zipWith (+) xs ds}
+             returnA -< arrowSeq r
 
        forgetfulIntegral = iterFrom (\_ v dt _ -> v * dt) 0
 
@@ -359,8 +361,10 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
        processPlayerMovement' player = switch
          ((loopPre player $
             (proc ((c, g), p) ->
-                 case p of
-                       Nothing              -> returnA -< (p,g)
+                 let state = (p,g)
+                     state' = state `seq` state
+                 in case p of
+                       Nothing              -> returnA -< state'
                        Just (n, Nothing)    -> -- Check if needs to move forward upon click
                                                returnA -<
                                                    (if controllerClick c
@@ -369,11 +373,11 @@ gamePlay' (player, objs, graph) = loopPre ([], [], 0) $
                                                            in maybe (p,g)
                                                                     (\d -> if connectedNodes g n d
                                                                              then startMoving g n d
-                                                                             else (p,g)
+                                                                             else state'
                                                                     ) $
                                                                -- (\x -> trace (show (x, adjustedPos)) x) $
                                                                  g `nodeAtPos` adjustedPos
-                                                      else (p,g))
+                                                      else state')
                        Just (n, Just tInfo) -> -- Move forward, possibly altering graph
                                                movePlayerForward -< ((n, tInfo), g)
              ) >>> arr (id &&& fst))

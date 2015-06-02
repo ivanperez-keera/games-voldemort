@@ -185,7 +185,7 @@ quickTrace x = trace (show x) x
 mapSeq :: [a] -> [a]
 mapSeq x = x `seq` mapSeq' x
 mapSeq' []     = []
-mapSeq' (a:as) = a `seq` mapSeq' as
+mapSeq' rs@(a:as) = a `seq` mapSeq' as `seq` rs
 
 graphSeq :: Graph -> Graph
 graphSeq x = mapSeq (nodes x) `seq` mapSeqWith arrowSeq (arrows x) `seq` x
