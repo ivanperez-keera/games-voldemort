@@ -69,7 +69,7 @@ playerColor = 0x77FF00FF
 playerSize :: Int16
 playerSize = 15
 arrowColor :: Word32
-arrowColor = 0xFF44AAAA
+arrowColor = 0xBBFFAAFF
 nodeColor :: Bool -> Word32
 nodeColor final = if final then 0xFF9900FF else 0x0099FFFF
 nodeSize :: Int16
